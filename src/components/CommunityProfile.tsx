@@ -6,8 +6,8 @@ export default function CommunityProfile() {
   const navigate = useNavigate();
 
   const communityData = {
-    '1': { 
-      name: '농구', 
+    '1': {
+      name: '농구',
       emoji: '🏀',
       description: '매일 농구 실력을 향상시키는 커뮤니티',
       createdDate: '2024.01.15',

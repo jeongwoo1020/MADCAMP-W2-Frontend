@@ -30,7 +30,8 @@ export default function CreateCommunity() {
     );
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
+    // 1. 입력값 검증 (기존 로직 유지)
     if (!communityName.trim()) {
       alert('커뮤니티 이름을 입력해주세요!');
       return;
@@ -44,9 +45,36 @@ export default function CreateCommunity() {
       return;
     }
 
-    // 커뮤니티 생성 로직 (여기서는 간단히 알림만)
-    alert(`커뮤니티 "${communityName}" 생성 완료!`);
-    navigate('/');
+    // 2. 실제 백엔드 서버(8000번)로 데이터 전송
+    try {
+      const response = await fetch('http://localhost:8000/api/communities/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          com_name: communityName, // 백엔드 필드명 일치 필수
+          com_id: communityId,
+          description: description,
+          emoji: selectedEmoji,
+          days: selectedDays.join(','), // 리스트를 문자열로 변환
+          cert_time: certificationTime,
+        }),
+      });
+
+      // 3. 응답 결과 처리
+      if (response.ok) {
+        alert(`커뮤니티 "${communityName}" 생성 완료!`);
+        navigate('/'); // 성공 시 메인 페이지로 이동
+      } else {
+        const errorData = await response.json();
+        console.error("서버 에러 상세:", errorData);
+        alert(`생성 실패: ${JSON.stringify(errorData)}`);
+      }
+    } catch (error) {
+      console.error("네트워크 에러:", error);
+      alert("백엔드 서버(8000번)가 꺼져있거나 연결할 수 없습니다.");
+    }
   };
 
   return (
@@ -77,11 +105,10 @@ export default function CreateCommunity() {
                 <button
                   key={emoji}
                   onClick={() => setSelectedEmoji(emoji)}
-                  className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all ${
-                    selectedEmoji === emoji
-                      ? 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-lg scale-110'
-                      : 'bg-gray-100 hover:bg-gray-200'
-                  }`}
+                  className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all ${selectedEmoji === emoji
+                    ? 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-lg scale-110'
+                    : 'bg-gray-100 hover:bg-gray-200'
+                    }`}
                 >
                   {emoji}
                 </button>
@@ -150,11 +177,10 @@ export default function CreateCommunity() {
                 <button
                   key={day.id}
                   onClick={() => toggleDay(day.id)}
-                  className={`flex-1 aspect-square rounded-xl font-semibold transition-all ${
-                    selectedDays.includes(day.id)
-                      ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-lg'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
+                  className={`flex-1 aspect-square rounded-xl font-semibold transition-all ${selectedDays.includes(day.id)
+                    ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white shadow-lg'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
                 >
                   {day.label}
                 </button>
