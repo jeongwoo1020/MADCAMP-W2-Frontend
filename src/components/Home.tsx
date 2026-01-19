@@ -57,7 +57,7 @@ export default function Home() {
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
-      alert(`"${searchQuery}" 검색 결과를 찾는 중...`);
+      navigate(`/search-community?id=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
 

@@ -47,17 +47,18 @@ export default function CreateCommunity() {
 
     // 2. 실제 백엔드 서버(8000번)로 데이터 전송
     try {
-      const response = await fetch('http://localhost:8000/api/communities/', {
+      const response = await fetch('/api/communities/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
         },
         body: JSON.stringify({
-          com_name: communityName, // 백엔드 필드명 일치 필수
+          com_name: communityName,
           com_id: communityId,
           description: description,
-          emoji: selectedEmoji,
-          days: selectedDays.join(','), // 리스트를 문자열로 변환
+          icon_url: selectedEmoji, // 백엔드 필드명: icon_url
+          cert_days: selectedDays, // 백엔드 필드명: cert_days (JSON Array)
           cert_time: certificationTime,
         }),
       });

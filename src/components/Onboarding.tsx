@@ -9,10 +9,6 @@ interface OnboardingProps {
 export default function Onboarding({ onComplete }: OnboardingProps) {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
-  const [userName, setUserName] = useState('');
-  const [selectedAvatar, setSelectedAvatar] = useState('😊');
-
-  const avatars = ['😊', '😎', '🤗', '😁', '🥳', '💪', '🔥', '⭐', '🏆', '👑'];
 
   const tutorialSteps = [
     {
@@ -45,85 +41,17 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
     if (currentStep < tutorialSteps.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      setCurrentStep(tutorialSteps.length); // 프로필 설정 단계로
+      // 마지막 단계에서 바로 온보딩 완료
+      onComplete();
+      navigate('/');
     }
   };
 
   const handleSkip = () => {
-    setCurrentStep(tutorialSteps.length); // 프로필 설정 단계로 바로 이동
-  };
-
-  const handleComplete = () => {
-    if (!userName.trim()) {
-      alert('이름을 입력해주세요!');
-      return;
-    }
-    localStorage.setItem('isLoggedIn', 'true');
-    localStorage.setItem('userName', userName);
-    localStorage.setItem('userAvatar', selectedAvatar);
+    // 건너뛰기 시 바로 온보딩 완료
     onComplete();
     navigate('/');
   };
-
-  // 프로필 설정 단계
-  if (currentStep === tutorialSteps.length) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-6">
-        <div className="max-w-md w-full">
-          <div className="bg-white rounded-3xl p-8 shadow-xl">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">프로필 설정</h2>
-              <p className="text-gray-600">프로필을 설정해주세요.</p>
-            </div>
-
-            {/* 아바타 선택 */}
-            <div className="mb-6">
-              <label className="block text-sm font-semibold text-gray-700 mb-3">
-                아바타 선택
-              </label>
-              <div className="grid grid-cols-5 gap-3">
-                {avatars.map((avatar) => (
-                  <button
-                    key={avatar}
-                    onClick={() => setSelectedAvatar(avatar)}
-                    className={`aspect-square rounded-2xl text-3xl flex items-center justify-center transition-all ${
-                      selectedAvatar === avatar
-                        ? 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-lg scale-110'
-                        : 'bg-gray-100 hover:bg-gray-200'
-                    }`}
-                  >
-                    {avatar}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 이름 입력 */}
-            <div className="mb-8">
-              <label className="block text-sm font-semibold text-gray-700 mb-2">
-                이름
-              </label>
-              <input
-                type="text"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="이름을 입력하세요"
-                className="w-full px-4 py-3 bg-gray-50 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600"
-                maxLength={20}
-              />
-            </div>
-
-            <button
-              onClick={handleComplete}
-              className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-2xl py-4 font-semibold shadow-lg active:scale-[0.98] transition-transform"
-            >
-              시작하기 🚀
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // 튜토리얼 단계
   const step = tutorialSteps[currentStep];
@@ -138,11 +66,10 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
             {tutorialSteps.map((_, index) => (
               <div
                 key={index}
-                className={`h-1 flex-1 rounded-full transition-all ${
-                  index <= currentStep
+                className={`h-1 flex-1 rounded-full transition-all ${index <= currentStep
                     ? 'bg-gradient-to-r from-indigo-600 to-purple-600'
                     : 'bg-gray-200'
-                }`}
+                  }`}
               />
             ))}
           </div>
@@ -167,7 +94,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               {currentStep === tutorialSteps.length - 1 ? '프로필 설정하기' : '다음'}
               <ChevronRight className="w-5 h-5" />
             </button>
-            
+
             {currentStep < tutorialSteps.length - 1 && (
               <button
                 onClick={handleSkip}

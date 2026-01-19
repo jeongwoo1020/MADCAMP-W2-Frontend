@@ -64,7 +64,7 @@ export default function Leaderboard() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-semibold">순위 / 수치의 전당</h1>
+          <h1 className="font-semibold">순위</h1>
           <div className="w-10 h-10"></div>
         </div>
       </div>

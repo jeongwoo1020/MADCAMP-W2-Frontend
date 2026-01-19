@@ -1,24 +1,96 @@
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Users, Calendar, Target, TrendingUp, Settings } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, Target, TrendingUp, Settings, Loader2 } from 'lucide-react';
+
+interface Community {
+  id: string;
+  name: string;
+  emoji: string;
+  description: string;
+  certDays: string;
+  certTime: string;
+  createdDate: string;
+  members: number;
+  totalPosts: number;
+  weeklyGoal: number;
+}
 
 export default function CommunityProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [community, setCommunity] = useState<Community | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const communityData = {
-    '1': {
-      name: '농구',
-      emoji: '🏀',
-      description: '매일 농구 실력을 향상시키는 커뮤니티',
-      createdDate: '2024.01.15',
-      members: 12,
-      totalPosts: 342,
-      weeklyGoal: 5,
-      category: '구기종목'
+  useEffect(() => {
+    const fetchCommunityDetail = async () => {
+      try {
+        setLoading(true);
+        // 실제 API 호출
+        const response = await fetch(`http://localhost:8000/api/communities/${id}`); // 백엔드 주소로 변경 필요
+
+        if (response.ok) {
+          const data = await response.json();
+          setCommunity(data);
+        } else {
+          // API 실패 시 (또는 개발 중) 더미 데이터 사용
+          console.warn('API call failed, using dummy data');
+          // 더미 데이터 fallback
+          const dummyData = {
+            id: '1',
+            name: '농구',
+            emoji: '🏀',
+            description: '매일 농구 실력을 향상시키는 커뮤니티',
+            certDays: '월, 수, 금',
+            certTime: '오후 8:00 ~ 오후 10:00',
+            createdDate: '2024.01.15',
+            members: 12,
+            totalPosts: 342,
+            weeklyGoal: 5,
+          };
+          setCommunity(dummyData);
+        }
+      } catch (err) {
+        console.error('Failed to fetch community:', err);
+        // 에러 발생 시에도 더미 데이터 보여주기 (개발 편의성)
+        const dummyData = {
+          id: '1',
+          name: '농구',
+          emoji: '🏀',
+          description: '매일 농구 실력을 향상시키는 커뮤니티',
+          certDays: '월, 수, 금',
+          certTime: '오후 8:00 ~ 오후 10:00',
+          createdDate: '2024.01.15',
+          members: 12,
+          totalPosts: 342,
+          weeklyGoal: 5,
+        };
+        setCommunity(dummyData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id) {
+      fetchCommunityDetail();
     }
-  };
+  }, [id]);
 
-  const community = communityData[id as keyof typeof communityData] || communityData['1'];
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!community) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>커뮤니티를 찾을 수 없습니다.</p>
+      </div>
+    );
+  }
 
   const stats = [
     { label: '총 멤버', value: community.members, icon: Users },
@@ -63,8 +135,16 @@ export default function CommunityProfile() {
             <div className="text-6xl mb-4">{community.emoji}</div>
             <h2 className="text-2xl font-bold mb-2">{community.name}</h2>
             <p className="text-white/90 mb-4">{community.description}</p>
-            <div className="inline-block bg-white/20 backdrop-blur-md rounded-full px-4 py-2 text-sm">
-              {community.category} • {community.createdDate} 시작
+            <div className="flex flex-col gap-2 items-center">
+              <div className="inline-block bg-white/20 backdrop-blur-md rounded-full px-4 py-1 text-sm">
+                📅 {community.certDays}
+              </div>
+              <div className="inline-block bg-white/20 backdrop-blur-md rounded-full px-4 py-1 text-sm">
+                ⏰ {community.certTime}
+              </div>
+              <div className="inline-block bg-white/20 backdrop-blur-md rounded-full px-4 py-1 text-sm">
+                {community.createdDate} 시작
+              </div>
             </div>
           </div>
         </div>
