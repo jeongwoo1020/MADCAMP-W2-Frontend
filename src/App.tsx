@@ -11,6 +11,7 @@ import Onboarding from './components/Onboarding';
 import CreateCommunity from './components/CreateCommunity';
 import JoinCommunity from './components/JoinCommunity';
 import HallOfShame from './components/HallOfShame';
+import GoogleLoginTest from './components/GoogleLoginTest';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -25,13 +26,13 @@ export default function App() {
     <Router>
       <div className="min-h-screen bg-gray-50">
         <Routes>
-          <Route 
-            path="/" 
-            element={isLoggedIn ? <Home /> : <Navigate to="/onboarding" />} 
+          <Route
+            path="/"
+            element={isLoggedIn ? <Home /> : <Navigate to="/onboarding" />}
           />
-          <Route 
-            path="/onboarding" 
-            element={<Onboarding onComplete={() => setIsLoggedIn(true)} />} 
+          <Route
+            path="/onboarding"
+            element={<Onboarding onComplete={() => setIsLoggedIn(true)} />}
           />
           <Route path="/create-community" element={<CreateCommunity />} />
           <Route path="/join-community/:id" element={<JoinCommunity />} />
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/community/:id/leaderboard" element={<Leaderboard />} />
           <Route path="/community/:id/shame" element={<HallOfShame />} />
           <Route path="/mypage" element={<MyPage />} />
+          <Route path="/test-login" element={<GoogleLoginTest />} />
         </Routes>
       </div>
     </Router>
