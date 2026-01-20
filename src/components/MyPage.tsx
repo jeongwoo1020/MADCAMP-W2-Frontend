@@ -43,6 +43,7 @@ export default function MyPage() {
   const [loading, setLoading] = useState(!userProfile);
   const [error, setError] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [joinedCommunitiesCount, setJoinedCommunitiesCount] = useState(0);
 
   useEffect(() => {
     console.log("마이페이지가 렌더링되었습니다. 문구 색상: 회색(#6b7280)");
@@ -83,6 +84,20 @@ export default function MyPage() {
             if (historyResponse.ok) {
               const historyData: PostHistory[] = await historyResponse.json();
               setPostHistory(historyData);
+            }
+
+            // 3. 커뮤니티 목록 가져오기 (뱃지용)
+            const communitiesResponse = await fetch('/api/members/my_communities/', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (communitiesResponse.ok) {
+              const communitiesData = await communitiesResponse.json();
+              setJoinedCommunitiesCount(Array.isArray(communitiesData) ? communitiesData.length : 0);
             }
 
             setLoading(false);
@@ -223,13 +238,56 @@ export default function MyPage() {
     { label: '커뮤니티', value: userProfile.interests?.length || 0, icon: Users, color: 'pink' }
   ];
 
+  const calculateStreak = () => {
+    if (postHistory.length === 0) return 0;
+
+    const formatDate = (date: Date) => {
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    };
+
+    const uniqueDates = Array.from(new Set(postHistory.map(h => formatDate(new Date(h.created_at)))))
+      .sort()
+      .reverse();
+
+    if (uniqueDates.length === 0) return 0;
+
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const todayStr = formatDate(today);
+    const yesterdayStr = formatDate(yesterday);
+    const lastCertDate = uniqueDates[0];
+
+    // 마지막 인증이 오늘이나 어제가 아니면 연속 끊김
+    if (lastCertDate !== todayStr && lastCertDate !== yesterdayStr) {
+      return 0;
+    }
+
+    let streak = 1;
+    let currentDateStr = lastCertDate;
+
+    for (let i = 1; i < uniqueDates.length; i++) {
+      const prevDate = new Date(currentDateStr);
+      prevDate.setDate(prevDate.getDate() - 1);
+      const expectedPrevDateStr = formatDate(prevDate);
+
+      if (uniqueDates[i] === expectedPrevDateStr) {
+        streak++;
+        currentDateStr = expectedPrevDateStr;
+      } else {
+        break;
+      }
+    }
+    return streak;
+  };
+
+  const currentStreak = calculateStreak();
+
   const achievements = [
-    { emoji: '🔥', title: '7일 연속 인증', earned: true },
-    { emoji: '💪', title: '100회 인증 달성', earned: true },
-    { emoji: '🏆', title: '월간 1등', earned: true },
-    { emoji: '⭐', title: '30일 연속 인증', earned: false },
-    { emoji: '👑', title: '전체 1등', earned: false },
-    { emoji: '💎', title: '1년 활동', earned: false }
+    { emoji: '💪', title: '100회 인증 달성', earned: postHistory.length >= 100 },
+    { emoji: '🔥', title: '7일 연속 인증', earned: currentStreak >= 7 },
+    { emoji: '🏘️', title: '3개 그룹 가입', earned: joinedCommunitiesCount >= 3 }
   ];
 
   const handleLogout = () => {
