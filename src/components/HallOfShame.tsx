@@ -134,6 +134,10 @@ export default function HallOfShame() {
                       src={user.shameImage}
                       alt={user.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('Image load failed for:', user.name);
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800';
+                      }}
                     />
                     {/* 오버레이 */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
