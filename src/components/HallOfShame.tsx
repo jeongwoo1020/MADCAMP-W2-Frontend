@@ -14,93 +14,72 @@ interface ShameUser {
 export default function HallOfShame() {
   const navigate = useNavigate();
   const { id } = useParams();
-
   const [shameUsers, setShameUsers] = useState<ShameUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [communityInfo, setCommunityInfo] = useState({ name: '커뮤니티', emoji: '🏆' });
+
 
   useEffect(() => {
-    const fetchShameData = async () => {
+    const fetchData = async () => {
       if (!id) return;
-
       try {
         const token = localStorage.getItem('accessToken');
         const headers: Record<string, string> = {};
-        if (token) {
-          headers['Authorization'] = `Bearer ${token}`;
-        }
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-        // 1. 커뮤니티 정보 가져오기 (이름, 이모지)
-        const comRes = await fetch(`/api/communities/${id}/`, { headers });
-        if (comRes.ok) {
-          const comData = await comRes.json();
-          setCommunityInfo({
-            name: comData.com_name,
-            emoji: comData.icon_url || '🏆'
-          });
-        }
 
-        // 2. 수치의 전당 데이터 가져오기
+
+        // 2. 수치의 전당 리스트
         const shameRes = await fetch(`/api/communities/${id}/hall_of_shame/`, { headers });
         if (shameRes.ok) {
           const shameData = await shameRes.json();
-          // API 응답 구조에 맞춰 매핑
-          const mappedUsers = shameData.map((user: any) => ({
-            id: user.user_id || Math.random().toString(),
-            name: user.nick_name || user.user_name || '익명',
-            avatar: (user.profile_img_url || '👤').trim().replace(/['"]/g, ''),
-            shameImage: (user.shame_img_url || 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800').trim().replace(/['"]/g, ''),
-            missedDays: user.continuous_missed_days || 1, // 백엔드에서 주면 사용, 안주면 1일
-            lastActive: user.last_active_date ? new Date(user.last_active_date).toLocaleDateString() : '최근'
+          // shameData is MemberSerializer[]
+          const mapped: ShameUser[] = shameData.map((m: any) => ({
+            id: m.mem_idx,
+            name: m.nick_name || '알 수 없음',
+            avatar: m.profile_img_url || '👤',
+            shameImage: m.shame_img_url, // 백엔드에서 null일 수도 있으니 처리 필요할 수 있음
+            missedDays: m.is_late_cnt || 1, // API 필드에 따라 조정 (현재는 is_late_cnt 사용)
+            lastActive: '최근' // API에 last_active가 없어서 임시 텍스트
           }));
-          setShameUsers(mappedUsers);
+
+          // shame_img_url이 있는 유저만 필터링 (이미지가 없으면 박제 의미가 적으므로)
+          // 혹은 이미지가 없으면 기본 이미지를 보여줄 수도 있음. 기획에 따라 다름.
+          // 여기선 있는 경우만 보여주거나, 없으면 기본 이미지
+          const filtered = mapped.filter(u => u.shameImage);
+          setShameUsers(filtered);
         }
+
       } catch (error) {
-        console.error("Failed to fetch hall of shame data:", error);
+        console.error('Failed to fetch hall of shame:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchShameData();
+    fetchData();
   }, [id]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-red-600 animate-spin" />
       </div>
     );
   }
-
-  const renderIcon = (icon: string) => {
-    if (!icon) return '👤';
-    const cleanIcon = icon.trim();
-    if (cleanIcon.startsWith('http') || cleanIcon.startsWith('/') || cleanIcon.includes('data:')) {
-      return <img src={cleanIcon} alt="icon" className="w-full h-full rounded-full object-cover" />;
-    }
-    // 길이가 긴 텍스트(Base64 등)는 화면에 출력하지 않고 기본 아이콘 대체
-    return cleanIcon.length > 50 ? '👤' : icon;
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
       {/* 헤더 */}
       <div className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-md mx-auto px-4 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate(`/community/${id}`)}
             className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="flex items-center gap-2">
-            <span className="text-2xl w-8 h-8 flex items-center justify-center overflow-hidden rounded-full">
-              {renderIcon(communityInfo.emoji)}
-            </span>
-            <h1 className="text-xl font-bold">수치의 전당</h1>
-          </div>
-          <div className="w-10"></div>
+          <h1 className="font-semibold">수치의 전당</h1>
+          <div className="w-10 h-10"></div>
         </div>
       </div>
 
@@ -122,14 +101,13 @@ export default function HallOfShame() {
           </p>
         </div>
 
-        {/* 수치 리스트 */}
+        {/*   수치 리스트 */}
         {shameUsers.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center shadow-lg">
             <div className="text-6xl mb-4">🎉</div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">완벽해요!</h3>
             <p className="text-gray-600">
-              어제 모든 멤버가 인증을 완료했어요!<br />
-              오늘도 함께 화이팅! 💪
+              어제 모든 멤버가 인증을 완료했어요! 💪
             </p>
           </div>
         ) : (
@@ -167,8 +145,10 @@ export default function HallOfShame() {
                     {/* 사용자 정보 */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="w-10 h-10 flex items-center justify-center text-3xl">
-                          {renderIcon(user.avatar)}
+                        <div className="text-3xl flex items-center justify-center w-8 h-8">
+                          {(user.avatar?.startsWith('http') || user.avatar?.startsWith('/')) ? (
+                            <img src={user.avatar} className="w-full h-full rounded-full object-cover" />
+                          ) : user.avatar}
                         </div>
                         <div>
                           <p className="font-bold text-lg">{user.name}</p>
@@ -184,7 +164,7 @@ export default function HallOfShame() {
                   <div className="flex items-center justify-center gap-2">
                     <X className="w-5 h-5 text-red-600" />
                     <p className="text-sm font-semibold text-red-700">
-                      연속 {user.missedDays}일 미인증
+                      총 {user.missedDays}회 지각/미인증
                     </p>
                   </div>
                 </div>
@@ -201,6 +181,6 @@ export default function HallOfShame() {
           </p>
         </div>
       </div>
-    </div>
+    </div >
   );
 }
