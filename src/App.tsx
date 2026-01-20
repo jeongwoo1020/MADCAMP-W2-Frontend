@@ -15,15 +15,18 @@ import CreateCommunity from './components/CreateCommunity';
 import JoinCommunity from './components/JoinCommunity';
 import HallOfShame from './components/HallOfShame';
 import CommunitySearchResult from './components/CommunitySearchResult';
+import EditProfile from './components/EditProfile';
 
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => localStorage.getItem('isLoggedIn') === 'true');
 
   useEffect(() => {
-    // 로그인 상태 확인 (localStorage에서)
+    // 테마 또는 로그인 상태 변경 감지 필요시 (옵션)
     const loginStatus = localStorage.getItem('isLoggedIn');
-    setIsLoggedIn(loginStatus === 'true');
-  }, []);
+    if (isLoggedIn !== (loginStatus === 'true')) {
+      setIsLoggedIn(loginStatus === 'true');
+    }
+  }, [isLoggedIn]);
 
   return (
     <Router>
@@ -55,6 +58,7 @@ export default function App() {
           <Route path="/community/:id/chat" element={<ChatRoom />} />
           <Route path="/community/:id/leaderboard" element={<Leaderboard />} />
           <Route path="/community/:id/shame" element={<HallOfShame />} />
+          <Route path="/edit-profile" element={<EditProfile />} />
           <Route path="/mypage" element={<MyPage />} />
         </Routes>
       </div>

@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router';
+import { Link } from 'react-router';
 import { LogIn, Lock, User } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function Login() {
-  const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -13,7 +12,7 @@ export default function Login() {
     e.preventDefault();
 
     if (!username.trim() || !password.trim()) {
-      alert('아이디와 비밀번호를 입력해주세요.');
+      toast.error('아이디와 비밀번호를 입력해주세요.');
       return;
     }
 
@@ -51,13 +50,16 @@ export default function Login() {
       }
 
       // 페이지 이동
-      toast.success('로그인 성공!');
-      navigate('/');
+      toast.success('로그인 성공! 🎉');
+
+      // 상태 반영을 위해 메인 페이지로 이동
+      setTimeout(() => {
+        window.location.href = '/';
+      }, 500);
     } catch (error: any) {
       console.error('로그인 오류:', error);
       const errorMsg = error.message || '로그인 중 오류가 발생했습니다.';
       toast.error(errorMsg);
-      // alert(errorMsg); // toast 사용하므로 alert 제거
     } finally {
       setLoading(false);
     }

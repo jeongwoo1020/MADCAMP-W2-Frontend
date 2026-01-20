@@ -39,42 +39,43 @@ export default function JoinCommunity() {
 
     try {
       // JWT 토큰 가져오기 (localStorage에서)
-      const token = localStorage.getItem('token');
-      
+      const token = localStorage.getItem('accessToken');
+
       if (!token) {
         alert('로그인이 필요합니다. 먼저 로그인해주세요.');
         return;
       }
 
-      // API 호출 - 백엔드는 nick_name과 description을 기대함
-      const response = await fetch(`http://localhost:8000/api/communities/${id}/join/`, {
+      // API 호출 - URL: /api/communities/join/ (detail=False), Body: com_id, nick_name, description
+      const response = await fetch('/api/communities/join/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({
-          nick_name: nickname.trim(),  // 백엔드는 nick_name을 기대
-          description: bio.trim() || "",  // 백엔드는 description을 기대
+          com_id: id,          // URL 파라미터로 받은 ID를 body에 포함
+          nick_name: nickname.trim(),
+          description: bio.trim() || "",
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         const errorMessage = errorData.error || errorData.detail || errorData.message || `가입에 실패했습니다. (상태 코드: ${response.status})`;
-        
+
         // 401 Unauthorized - 인증 실패
         if (response.status === 401) {
           alert('로그인이 만료되었습니다. 다시 로그인해주세요.');
           return;
         }
-        
+
         // 400 Bad Request - 요청 데이터 오류
         if (response.status === 400) {
           alert(errorMessage);
           return;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -85,7 +86,7 @@ export default function JoinCommunity() {
       const errorMessage = error instanceof Error ? error.message : '가입 중 오류가 발생했습니다.';
       alert(errorMessage);
       console.error('Join error:', error);
-      
+
       // 네트워크 오류 등
       if (error instanceof TypeError && error.message.includes('fetch')) {
         alert('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
@@ -150,7 +151,7 @@ export default function JoinCommunity() {
               <p className="text-xs text-gray-500 mt-1">운동 완료 시 보여질 사진 (선택사항)</p>
             </div>
           </div>
-          
+
           <div
             onClick={() => normalImageRef.current?.click()}
             className="relative aspect-square bg-gradient-to-br from-green-50 to-emerald-50 rounded-2xl border-2 border-dashed border-green-300 flex flex-col items-center justify-center cursor-pointer hover:bg-green-100 transition-all overflow-hidden"
@@ -196,7 +197,7 @@ export default function JoinCommunity() {
               <p className="text-xs text-gray-500 mt-1">운동 미완료 시 공개될 사진 (선택사항)</p>
             </div>
           </div>
-          
+
           <div
             onClick={() => shameImageRef.current?.click()}
             className="relative aspect-square bg-gradient-to-br from-red-50 to-pink-50 rounded-2xl border-2 border-dashed border-red-300 flex flex-col items-center justify-center cursor-pointer hover:bg-red-100 transition-all overflow-hidden"
@@ -236,7 +237,7 @@ export default function JoinCommunity() {
 
         <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-6">
           <p className="text-sm text-yellow-800">
-            💡 <strong>Tip:</strong> 수치 이미지는 인증을 하지 않았을 때 다른 멤버들에게 공개됩니다. 
+            💡 <strong>Tip:</strong> 수치 이미지는 인증을 하지 않았을 때 다른 멤버들에게 공개됩니다.
             동기부여가 될만한 재미있는 사진을 올려보세요!
           </p>
         </div>

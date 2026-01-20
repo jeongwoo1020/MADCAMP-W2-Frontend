@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { createPortal } from 'react-dom';
-import { ArrowLeft, Camera, MessageCircle, Trophy, Info, Flame, Send, X } from 'lucide-react';
+import { ArrowLeft, Camera, MessageCircle, Trophy, Info, Flame, Send, X, Loader2 } from 'lucide-react';
 
 interface Post {
   id: string;
@@ -28,6 +28,7 @@ export default function CommunityFeed() {
 
   // 토스트 메시지 상태
   const [showToast, setShowToast] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (showToast) {
@@ -67,14 +68,33 @@ export default function CommunityFeed() {
     }
   ]);
 
-  const communityData = {
-    '1': { name: '농구', emoji: '🏀', topUser: '김철수', topCount: 24 },
-    '2': { name: '수영', emoji: '🏊', topUser: '박영희', topCount: 18 },
-    '3': { name: '러닝크루', emoji: '🏃', topUser: '이민수', topCount: 31 },
-    '4': { name: '헬스', emoji: '💪', topUser: '최지은', topCount: 22 }
-  };
+  const [communityInfo, setCommunityInfo] = useState({ name: '', emoji: '', certDays: [] as string[] });
 
-  const community = communityData[id as keyof typeof communityData] || communityData['1'];
+  useEffect(() => {
+    const fetchCommunityInfo = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const token = localStorage.getItem('accessToken');
+        const response = await fetch(`/api/communities/${id}/`, {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCommunityInfo({
+            name: data.com_name,
+            emoji: data.icon_url || '💪',
+            certDays: Array.isArray(data.cert_days) ? data.cert_days : []
+          });
+        }
+      } catch (error) {
+        console.error("Failed to fetch community info", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCommunityInfo();
+  }, [id]);
 
   // 페이지 진입 시 스크롤 잠금 (주소창 고정 효과)
   useEffect(() => {
@@ -153,6 +173,16 @@ export default function CommunityFeed() {
     return cards;
   };
 
+
+
+  if (loading) {
+    return (
+      <div className="fixed inset-0 bg-gray-50 flex items-center justify-center z-50">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     // fixed inset-0으로 화면을 꽉 채우고, touch-action-none으로 브라우저 제스처 최소화
     <div className="fixed inset-0 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex flex-col overflow-hidden touch-none">
@@ -164,8 +194,13 @@ export default function CommunityFeed() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-2xl">{community.emoji}</span>
-            <span className="font-bold text-gray-900">{community.name}</span>
+            {/* Simple image check similar to other components */}
+            {(communityInfo.emoji?.startsWith('http') || communityInfo.emoji?.startsWith('/') || communityInfo.emoji?.startsWith('data:')) ? (
+              <img src={communityInfo.emoji} alt="icon" className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <span className="text-2xl">{communityInfo.emoji || '💪'}</span>
+            )}
+            <span className="font-bold text-gray-900">{communityInfo.name || '커뮤니티'}</span>
           </div>
           <button onClick={() => navigate(`/community/${id}/profile`)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
             <Info className="w-5 h-5" />
@@ -177,27 +212,38 @@ export default function CommunityFeed() {
       <div className="flex-1 flex flex-col max-w-md mx-auto w-full px-4 py-3 min-h-0 gap-3">
 
         {/* 인증 버튼 */}
-        <div className="flex-none bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl p-4 text-white shadow-lg">
-          <div className="flex items-center justify-between mb-2">
-            <div>
-              <p className="font-bold text-lg">
-                {hasPostedToday ? '운동 인증 완료!' : '오늘의 운동 인증'}
-              </p>
-              <p className="text-sm text-white/90">
-                {hasPostedToday ? '오늘도 완료! 👏' : '친구들 사진 보기'}
-              </p>
-            </div>
-            <Camera className="w-8 h-8" />
-          </div>
-          {!hasPostedToday && (
-            <button
-              onClick={() => navigate(`/community/${id}/upload`)}
-              className="w-full bg-white text-orange-600 rounded-xl py-3 font-bold active:scale-95 transition-transform"
+        {(() => {
+          const weekdays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+          const todayStr = weekdays[new Date().getDay()];
+          const isCertDay = communityInfo.certDays.map(d => d.toLowerCase().trim()).includes(todayStr);
+
+          return (
+            <div
+              className="flex-none rounded-2xl p-4 text-white shadow-lg"
+              style={{ background: isCertDay ? 'linear-gradient(to right, #f97316, #ef4444)' : 'linear-gradient(to right, #3b82f6, #6366f1)' }}
             >
-              지금 인증하기
-            </button>
-          )}
-        </div>
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="font-bold text-lg">
+                    {hasPostedToday ? '운동 인증 완료!' : isCertDay ? '오늘의 운동 인증' : '오늘은 인증 요일이 아니에요'}
+                  </p>
+                  <p className="text-sm text-white/90">
+                    {hasPostedToday ? '오늘도 완료! 👏' : isCertDay ? '친구들 사진 보기' : '다음 인증일을 기다려 주세요'}
+                  </p>
+                </div>
+                <Camera className="w-8 h-8" />
+              </div>
+              {!hasPostedToday && isCertDay && (
+                <button
+                  onClick={() => navigate(`/community/${id}/upload`)}
+                  className="w-full bg-white text-orange-600 rounded-xl py-3 font-bold active:scale-95 transition-transform"
+                >
+                  지금 인증하기
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 카드 스택 영역 */}
         <div className="flex-1 flex flex-col min-h-0 relative">

@@ -1,6 +1,6 @@
-import { Plus, Clock, Calendar, ChevronRight, Search } from 'lucide-react';
+import { Plus, Clock, Calendar, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BottomNav from './BottomNav';
 
 interface Community {
@@ -16,50 +16,149 @@ interface Community {
 export default function Home() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
-  const [communities] = useState<Community[]>([
-    {
-      id: '1',
-      name: '농구',
-      emoji: '🏀',
-      timeLeft: '3분',
-      nextPostTime: null,
-      participants: 12,
-      postsToday: 8
-    },
-    {
-      id: '2',
-      name: '수영',
-      emoji: '🏊',
-      timeLeft: null,
-      nextPostTime: '내일 오전 7시',
-      participants: 8,
-      postsToday: 0
-    },
-    {
-      id: '3',
-      name: '러닝크루',
-      emoji: '🏃',
-      timeLeft: '45분',
-      nextPostTime: null,
-      participants: 24,
-      postsToday: 18
-    },
-    {
-      id: '4',
-      name: '헬스',
-      emoji: '💪',
-      timeLeft: null,
-      nextPostTime: '오늘 오후 6시',
-      participants: 15,
-      postsToday: 0
+  const [communities, setCommunities] = useState<Community[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCommunities = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        const response = await fetch('/api/members/my_communities/', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.status === 401) {
+            navigate('/login');
+            return;
+          }
+          throw new Error('데이터를 가져오는데 실패했습니다.');
+        }
+
+        const data = await response.json();
+
+        const mappedCommunities: Community[] = data.map((item: any) => {
+          const { timeLeft, nextPostTime } = calculateCertificationStatus(item.cert_days || [], item.cert_time || '00:00:00');
+
+          return {
+            id: item.com_uuid,
+            name: item.com_name,
+            emoji: item.icon_url || '💪',
+            timeLeft,
+            nextPostTime,
+            participants: 0, // Backend constraint
+            postsToday: 0    // Backend constraint
+          };
+        });
+
+        setCommunities(mappedCommunities);
+      } catch (error) {
+        console.error('Fetch error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCommunities();
+  }, [navigate]);
+
+  const calculateCertificationStatus = (certDays: string[] | string, certTime: string) => {
+    const now = new Date();
+    const weekdays = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+    // 1. Data Parsing & Safety check
+    let parsedDays: string[] = [];
+    if (Array.isArray(certDays)) {
+      parsedDays = certDays;
+    } else if (typeof certDays === 'string') {
+      try {
+        const jsonString = (certDays as string).replace(/'/g, '"');
+        parsedDays = JSON.parse(jsonString);
+      } catch (e) {
+        const cleanString = (certDays as string).replace(/[\[\]"']/g, '');
+        parsedDays = cleanString.split(',').map(s => s.trim());
+      }
     }
-  ]);
+
+    // Normalize to lowercase
+    const cleanCertDays = parsedDays.map(d => String(d).trim().toLowerCase());
+
+    const [h, m] = (certTime || '00:00').split(':').map(Number);
+    const deadline = new Date();
+    deadline.setHours(h || 0, m || 0, 0, 0);
+
+    let timeLeft: string | null = null;
+    let nextPostTime: string | null = null;
+
+    // 2. Check Today
+    const todayStr = weekdays[now.getDay()];
+    if (cleanCertDays.includes(todayStr)) {
+      if (now < deadline) {
+        const diffMs = deadline.getTime() - now.getTime();
+        const diffMins = Math.floor(diffMs / 60000);
+
+        if (diffMins < 60) {
+          timeLeft = `${diffMins}분`;
+        } else {
+          const diffHours = Math.floor(diffMins / 60);
+          timeLeft = `${diffHours}시간 ${diffMins % 60}분`;
+        }
+      }
+    }
+
+    // 3. Check Future
+    if (!timeLeft) {
+      for (let i = 1; i <= 7; i++) {
+        const nextDate = new Date();
+        nextDate.setDate(now.getDate() + i);
+        const nextDayStr = weekdays[nextDate.getDay()];
+
+        if (cleanCertDays.includes(nextDayStr)) {
+          const month = nextDate.getMonth() + 1;
+          const date = nextDate.getDate();
+          const dayPrefix = i === 1 ? '내일' : `${month}월 ${date}일`;
+
+          const displayHours = h > 12 ? h - 12 : h;
+          const ampm = h >= 12 ? '오후' : '오전';
+          nextPostTime = `${dayPrefix} ${ampm} ${displayHours}시`;
+          break;
+        }
+      }
+    }
+
+    return { timeLeft, nextPostTime };
+  };
+
+  const renderCommunityIcon = (icon: string, sizeClass: string) => {
+    const isUrl = icon.startsWith('http') || icon.startsWith('/') || icon.startsWith('data:');
+    if (isUrl) {
+      // Convert text size to fixed dimensions for images to prevent large size
+      const dimension = sizeClass === 'text-3xl' ? 'w-8 h-8' : 'w-10 h-10';
+      return <img src={icon} alt="icon" className={`${dimension} rounded-full object-cover`} />;
+    }
+    return <div className={sizeClass}>{icon}</div>;
+  };
 
   const handleSearch = () => {
     if (searchQuery.trim()) {
       navigate(`/search-community?id=${encodeURIComponent(searchQuery.trim())}`);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 pb-20">
@@ -109,19 +208,25 @@ export default function Home() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="text-3xl">{community.emoji}</div>
+                    {renderCommunityIcon(community.emoji, 'text-3xl')}
                     <div>
                       <p className="font-semibold">{community.name} 커뮤니티</p>
-                      <p className="text-sm text-white/90">인증 {community.timeLeft} 남았습니다!</p>
+                      <p className="text-sm text-white/90">{community.timeLeft} 남았습니다!</p>
                     </div>
                   </div>
                   <Clock className="w-6 h-6" />
                 </div>
               </div>
             ))}
-          
+
           {communities
             .filter(c => !c.timeLeft && c.nextPostTime)
+            .sort((a, b) => {
+              // Prioritize "Today"("오늘") over "Tomorrow"("내일")
+              const isTodayA = a.nextPostTime?.startsWith('오늘') ? 1 : 0;
+              const isTodayB = b.nextPostTime?.startsWith('오늘') ? 1 : 0;
+              return isTodayB - isTodayA; // Descending order
+            })
             .slice(0, 1)
             .map(community => (
               <div
@@ -130,7 +235,7 @@ export default function Home() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="text-3xl">{community.emoji}</div>
+                    {renderCommunityIcon(community.emoji, 'text-3xl')}
                     <div>
                       <p className="font-semibold">{community.name}</p>
                       <p className="text-sm text-white/90">{community.nextPostTime}</p>
@@ -156,7 +261,7 @@ export default function Home() {
             >
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="text-4xl">{community.emoji}</div>
+                  {renderCommunityIcon(community.emoji, 'text-4xl')}
                   <div>
                     <h3 className="font-bold text-gray-900">{community.name}</h3>
                     <p className="text-sm text-gray-500">멤버 {community.participants}명</p>
@@ -164,7 +269,7 @@ export default function Home() {
                 </div>
                 <ChevronRight className="w-5 h-5 text-gray-400" />
               </div>
-              
+
               <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                 <div className="text-sm">
                   <span className="text-gray-600">오늘 인증:</span>

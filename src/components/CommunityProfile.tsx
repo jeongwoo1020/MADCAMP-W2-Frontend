@@ -10,7 +10,7 @@ interface Community {
   certDays: string;
   certTime: string;
   createdDate: string;
-  members: number;
+  participants: number; // Renamed from members to match API or logic
   totalPosts: number;
   weeklyGoal: number;
 }
@@ -26,46 +26,70 @@ export default function CommunityProfile() {
     const fetchCommunityDetail = async () => {
       try {
         setLoading(true);
-        // 실제 API 호출
-        const response = await fetch(`http://localhost:8000/api/communities/${id}`); // 백엔드 주소로 변경 필요
+        const token = localStorage.getItem('accessToken');
+        if (!token) {
+          navigate('/login');
+          return;
+        }
+
+        const response = await fetch(`/api/communities/${id}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
 
         if (response.ok) {
           const data = await response.json();
-          setCommunity(data);
-        } else {
-          // API 실패 시 (또는 개발 중) 더미 데이터 사용
-          console.warn('API call failed, using dummy data');
-          // 더미 데이터 fallback
-          const dummyData = {
-            id: '1',
-            name: '농구',
-            emoji: '🏀',
-            description: '매일 농구 실력을 향상시키는 커뮤니티',
-            certDays: '월, 수, 금',
-            certTime: '오후 8:00 ~ 오후 10:00',
-            createdDate: '2024.01.15',
-            members: 12,
-            totalPosts: 342,
-            weeklyGoal: 5,
+
+          // Parse cert_days safely
+          let parsedDays: string[] = [];
+          const rawDays = data.cert_days;
+          if (Array.isArray(rawDays)) {
+            parsedDays = rawDays;
+          } else if (typeof rawDays === 'string') {
+            try {
+              const jsonString = rawDays.replace(/'/g, '"');
+              parsedDays = JSON.parse(jsonString);
+            } catch (e) {
+              const cleanString = rawDays.replace(/[\[\]"']/g, '');
+              parsedDays = cleanString.split(',').map((s: string) => s.trim());
+            }
+          }
+
+          // Convert English day abbreviations to Korean
+          const dayOrder = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+          const dayMap: Record<string, string> = {
+            'sun': '일', 'mon': '월', 'tue': '화', 'wed': '수',
+            'thu': '목', 'fri': '금', 'sat': '토'
           };
-          setCommunity(dummyData);
+          // Sort by dayOrder then convert to Korean
+          const sortedDays = parsedDays
+            .map(d => d.toLowerCase().trim())
+            .sort((a, b) => dayOrder.indexOf(a) - dayOrder.indexOf(b));
+          const koreanDays = sortedDays.map(d => dayMap[d] || d);
+
+          setCommunity({
+            id: data.com_id,
+            name: data.com_name,
+            emoji: data.icon_url || '💪',
+            description: data.description,
+            certDays: koreanDays.join(', '),
+            certTime: data.cert_time,
+            createdDate: new Date(data.created_at).toLocaleDateString(),
+            participants: data.participant_count || data.member_count || 0,
+            totalPosts: data.post_count || data.posts_count || 0, // Try to get real counts if available
+            weeklyGoal: parsedDays.length || 0,
+          });
+        } else {
+          console.warn('API call failed');
+          // Dummy fallback removed or kept minimal if network fails completely?
+          // Let's keep dummy data only if really needed, but user asked for REAL API.
+          // Showing error might be better, but sticking to previous pattern:
+          setError("정보를 불러올 수 없습니다.");
         }
       } catch (err) {
         console.error('Failed to fetch community:', err);
-        // 에러 발생 시에도 더미 데이터 보여주기 (개발 편의성)
-        const dummyData = {
-          id: '1',
-          name: '농구',
-          emoji: '🏀',
-          description: '매일 농구 실력을 향상시키는 커뮤니티',
-          certDays: '월, 수, 금',
-          certTime: '오후 8:00 ~ 오후 10:00',
-          createdDate: '2024.01.15',
-          members: 12,
-          totalPosts: 342,
-          weeklyGoal: 5,
-        };
-        setCommunity(dummyData);
+        setError("정보를 불러올 수 없습니다.");
       } finally {
         setLoading(false);
       }
@@ -74,7 +98,7 @@ export default function CommunityProfile() {
     if (id) {
       fetchCommunityDetail();
     }
-  }, [id]);
+  }, [id, navigate]);
 
   if (loading) {
     return (
@@ -92,11 +116,19 @@ export default function CommunityProfile() {
     );
   }
 
+  const renderCommunityIcon = (icon: string) => {
+    const isUrl = icon.startsWith('http') || icon.startsWith('/') || icon.startsWith('data:');
+    if (isUrl) {
+      return <img src={icon} alt="icon" className="w-20 h-20 rounded-full object-cover mx-auto mb-4" />;
+    }
+    return <div className="text-6xl mb-4">{icon}</div>;
+  };
+
   const stats = [
-    { label: '총 멤버', value: community.members, icon: Users },
+    { label: '총 멤버', value: community.participants, icon: Users },
     { label: '총 인증', value: community.totalPosts, icon: Calendar },
     { label: '주간 목표', value: `${community.weeklyGoal}회`, icon: Target },
-    { label: '참여율', value: '87%', icon: TrendingUp }
+    { label: '참여율', value: '0%', icon: TrendingUp } // Placeholder as per backend limits
   ];
 
   const recentMembers = [
@@ -132,7 +164,7 @@ export default function CommunityProfile() {
         {/* 커뮤니티 정보 카드 */}
         <div className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl p-6 text-white shadow-xl mb-6">
           <div className="text-center">
-            <div className="text-6xl mb-4">{community.emoji}</div>
+            {renderCommunityIcon(community.emoji)}
             <h2 className="text-2xl font-bold mb-2">{community.name}</h2>
             <p className="text-white/90 mb-4">{community.description}</p>
             <div className="flex flex-col gap-2 items-center">

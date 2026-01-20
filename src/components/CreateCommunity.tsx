@@ -1,17 +1,19 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, Camera } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function CreateCommunity() {
   const navigate = useNavigate();
   const [communityName, setCommunityName] = useState('');
   const [communityId, setCommunityId] = useState('');
   const [description, setDescription] = useState('');
-  const [selectedEmoji, setSelectedEmoji] = useState('💪');
+  const [selectedIcon, setSelectedIcon] = useState<string | null>(null);
   const [selectedDays, setSelectedDays] = useState<string[]>([]);
   const [certificationTime, setCertificationTime] = useState('19:00');
 
-  const emojis = ['💪', '🏀', '🏊', '🏃', '⚽', '🚴', '🧘', '🎾', '🥊', '🧗', '⛷️', '🏋️', '🤸', '🏄', '🎿', '🥋'];
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const days = [
     { id: 'mon', label: '월' },
     { id: 'tue', label: '화' },
@@ -30,18 +32,29 @@ export default function CreateCommunity() {
     );
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedIcon(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleCreate = async () => {
-    // 1. 입력값 검증 (기존 로직 유지)
+    // 1. 입력값 검증
     if (!communityName.trim()) {
-      alert('커뮤니티 이름을 입력해주세요!');
+      toast.error('커뮤니티 이름을 입력해주세요!');
       return;
     }
     if (!communityId.trim()) {
-      alert('커뮤니티 ID를 입력해주세요!');
+      toast.error('커뮤니티 ID를 입력해주세요!');
       return;
     }
     if (selectedDays.length === 0) {
-      alert('인증 요일을 최소 1개 선택해주세요!');
+      toast.error('인증 요일을 최소 1개 선택해주세요!');
       return;
     }
 
@@ -57,24 +70,24 @@ export default function CreateCommunity() {
           com_name: communityName,
           com_id: communityId,
           description: description,
-          icon_url: selectedEmoji, // 백엔드 필드명: icon_url
-          cert_days: selectedDays, // 백엔드 필드명: cert_days (JSON Array)
+          icon_url: selectedIcon || '', // 이미지 없으면 빈 문자열
+          cert_days: selectedDays,
           cert_time: certificationTime,
         }),
       });
 
       // 3. 응답 결과 처리
       if (response.ok) {
-        alert(`커뮤니티 "${communityName}" 생성 완료!`);
+        toast.success(`커뮤니티 "${communityName}" 생성 완료!`);
         navigate('/'); // 성공 시 메인 페이지로 이동
       } else {
         const errorData = await response.json();
         console.error("서버 에러 상세:", errorData);
-        alert(`생성 실패: ${JSON.stringify(errorData)}`);
+        toast.error(`생성 실패: ${errorData.detail || JSON.stringify(errorData)}`);
       }
     } catch (error) {
       console.error("네트워크 에러:", error);
-      alert("백엔드 서버(8000번)가 꺼져있거나 연결할 수 없습니다.");
+      toast.error("서버에 연결할 수 없습니다.");
     }
   };
 
@@ -96,25 +109,36 @@ export default function CreateCommunity() {
 
       <div className="max-w-md mx-auto px-6 py-6">
         <div className="bg-white rounded-3xl p-6 shadow-lg mb-6">
-          {/* 아이콘 선택 */}
+          {/* 아이콘 선택 (이미지 업로드) */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-gray-700 mb-3">
-              커뮤니티 아이콘
+              커뮤니티 대표 사진
             </label>
-            <div className="grid grid-cols-8 gap-2">
-              {emojis.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => setSelectedEmoji(emoji)}
-                  className={`aspect-square rounded-xl text-2xl flex items-center justify-center transition-all ${selectedEmoji === emoji
-                    ? 'bg-gradient-to-br from-indigo-600 to-purple-600 shadow-lg scale-110'
-                    : 'bg-gray-100 hover:bg-gray-200'
-                    }`}
-                >
-                  {emoji}
-                </button>
-              ))}
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="relative aspect-video w-full bg-gray-100 rounded-2xl overflow-hidden cursor-pointer hover:bg-gray-200 transition-colors border-2 border-dashed border-gray-300 flex flex-col items-center justify-center group"
+            >
+              {selectedIcon ? (
+                <>
+                  <img src={selectedIcon} alt="Preview" className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Camera className="w-8 h-8 text-white" />
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center text-gray-400 group-hover:text-gray-600 transition-colors">
+                  <Camera className="w-12 h-12 mb-2" />
+                  <span className="text-sm font-medium">사진 업로드하기</span>
+                </div>
+              )}
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleImageUpload}
+            />
           </div>
 
           {/* 커뮤니티 이름 */}
