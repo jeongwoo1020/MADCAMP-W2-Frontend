@@ -10,6 +10,8 @@ export default function JoinCommunity() {
   const [bio, setBio] = useState('');
   const [normalImage, setNormalImage] = useState<string | null>(null);
   const [shameImage, setShameImage] = useState<string | null>(null);
+  const [normalImageFile, setNormalImageFile] = useState<File | null>(null);
+  const [shameImageFile, setShameImageFile] = useState<File | null>(null);
 
   const normalImageRef = useRef<HTMLInputElement>(null);
   const shameImageRef = useRef<HTMLInputElement>(null);
@@ -20,6 +22,12 @@ export default function JoinCommunity() {
   ) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (type === 'normal') {
+        setNormalImageFile(file);
+      } else {
+        setShameImageFile(file);
+      }
+      
       const reader = new FileReader();
       reader.onloadend = () => {
         if (type === 'normal') {
@@ -47,18 +55,26 @@ export default function JoinCommunity() {
         return;
       }
 
-      // API 호출 - URL: /api/communities/join/ (detail=False), Body: com_id, nick_name, description
+      const formData = new FormData();
+      if (id) formData.append('com_id', id);
+      formData.append('nick_name', nickname.trim());
+      formData.append('description', bio.trim() || "");
+      
+      if (normalImageFile) {
+        formData.append('profile_image', normalImageFile);
+      }
+      if (shameImageFile) {
+        formData.append('shame_image', shameImageFile);
+      }
+
+      // API 호출 - URL: /api/communities/join/ (detail=False), Body: FormData
       const response = await fetch('/api/communities/join/', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
+          // 'Content-Type': 'multipart/form-data', // 브라우저가 자동으로 설정하게 둬야 함 (boundary 때문)
         },
-        body: JSON.stringify({
-          com_id: id,          // URL 파라미터로 받은 ID를 body에 포함
-          nick_name: nickname.trim(),
-          description: bio.trim() || "",
-        }),
+        body: formData,
       });
 
       if (!response.ok) {

@@ -39,10 +39,12 @@ export default function ChatRoom() {
     }
   };
 
-  // 커뮤니티 정보 가져오기
+  // 커뮤니티 정보 가져오기 & 채팅 내역 가져오기
   useEffect(() => {
-    const fetchCommunityInfo = async () => {
+    const fetchInfoAndHistory = async () => {
       if (!id || !accessToken) return;
+
+      // 1. 커뮤니티 정보 가져오기
       try {
         const response = await fetch(`/api/communities/${id}/`, {
           headers: {
@@ -60,9 +62,36 @@ export default function ChatRoom() {
       } catch (error) {
         console.error('Failed to fetch community info:', error);
       }
+
+      // 2. 채팅 내역 가져오기
+      try {
+        const response = await fetch(`/api/chats/chat_history/?com_uuid=${id}`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          // 데이터 매핑
+          const historyMessages: Message[] = data.map((msg: any, index: number) => ({
+            id: `history-${index}-${Date.now()}`,
+            userId: msg.sender_id,
+            userName: msg.sender_nickname,
+            userAvatar: '👤',
+            message: msg.content,
+            timestamp: new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
+            isMe: msg.sender_id === myUserId,
+          }));
+
+          setMessages(prev => [...historyMessages, ...prev]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch chat history:', error);
+      }
     };
-    fetchCommunityInfo();
-  }, [id, accessToken]);
+
+    fetchInfoAndHistory();
+  }, [id, accessToken, myUserId]);
 
   useEffect(() => {
     if (!id || !accessToken) return;
