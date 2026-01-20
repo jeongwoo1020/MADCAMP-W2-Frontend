@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
-import { ArrowLeft, Send, Smile, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Send, Image as ImageIcon } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -12,26 +12,60 @@ interface Message {
   isMe: boolean;
 }
 
+interface CommunityInfo {
+  com_name: string;
+  icon_url: string;
+  member_count: number;
+}
+
 export default function ChatRoom() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [messageInput, setMessageInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
+  const [communityInfo, setCommunityInfo] = useState<CommunityInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // 웹소켓 객체 유지를 위한 Ref
   const socketRef = useRef<WebSocket | null>(null);
 
-  // localStorage에서 user_id (uuid) & access_token 값 가져오기 (채팅 사용자 인증)
-  const myUserId = localStorage.getItem('user_id'); 
-  const accessToken = localStorage.getItem('access_token');
+  // localStorage에서 userId & accessToken 값 가져오기 (채팅 사용자 인증)
+  const myUserId = localStorage.getItem('userId');
+  const accessToken = localStorage.getItem('accessToken');
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = true) => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: smooth ? 'smooth' : 'instant' });
+    }
   };
-  
+
+  // 커뮤니티 정보 가져오기
   useEffect(() => {
-   if (!id || !accessToken) return;
+    const fetchCommunityInfo = async () => {
+      if (!id || !accessToken) return;
+      try {
+        const response = await fetch(`/api/communities/${id}/`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCommunityInfo({
+            com_name: data.com_name || '채팅방',
+            icon_url: data.icon_url || '💬',
+            member_count: data.member_count || 0,
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch community info:', error);
+      }
+    };
+    fetchCommunityInfo();
+  }, [id, accessToken]);
+
+  useEffect(() => {
+    if (!id || !accessToken) return;
 
     // 1. 웹소켓 연결 주소 설정 (id=com_uuid)
     const socketUrl = `ws://localhost:8000/ws/chat/${id}/?token=${accessToken}`;
@@ -44,7 +78,7 @@ export default function ChatRoom() {
 
     socketRef.current.onmessage = (event) => {
       const data = JSON.parse(event.data); // 서버에서 보낸 데이터 수신
-      
+
       // 수신한 데이터를 Message 인터페이스 형식으로 변환
       const newMessage: Message = {
         id: Date.now().toString(), // 임시 ID
@@ -70,8 +104,8 @@ export default function ChatRoom() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]); 
-  
+  }, [messages]);
+
   const handleSendMessage = () => {
     if (!messageInput.trim() || !socketRef.current) return;
 
@@ -82,6 +116,8 @@ export default function ChatRoom() {
 
     socketRef.current.send(JSON.stringify(sendData));
     setMessageInput('');
+    // 메시지 전송 후 즉시 스크롤
+    setTimeout(() => scrollToBottom(false), 50);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -102,10 +138,23 @@ export default function ChatRoom() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="text-center">
-            <h1 className="font-semibold">농구 채팅방 🏀</h1>
-            <p className="text-xs text-gray-500">멤버 12명</p>
+          <div className="text-center flex items-center justify-center gap-2">
+            {communityInfo ? (
+              <>
+                {(communityInfo.icon_url?.startsWith('http') || communityInfo.icon_url?.startsWith('/') || communityInfo.icon_url?.startsWith('data:')) ? (
+                  <img src={communityInfo.icon_url} alt="icon" className="w-6 h-6 rounded-full object-cover" />
+                ) : (
+                  <span className="text-xl">{communityInfo.icon_url || '💬'}</span>
+                )}
+                <h1 className="font-semibold">{communityInfo.com_name}</h1>
+              </>
+            ) : (
+              <h1 className="font-semibold">채팅방 로딩중...</h1>
+            )}
           </div>
+          <p className="text-xs text-gray-500 text-center">
+            {communityInfo ? `멤버 ${communityInfo.member_count}명` : ''}
+          </p>
           <div className="w-10 h-10"></div>
         </div>
       </div>
@@ -150,11 +199,10 @@ export default function ChatRoom() {
             <button
               onClick={handleSendMessage}
               disabled={!messageInput.trim()}
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                messageInput.trim()
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
-                  : 'bg-gray-200 text-gray-400'
-              }`}
+              className={`w-10 h-10 rounded-full flex items-center justify-center ${messageInput.trim()
+                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
+                : 'bg-gray-200 text-gray-400'
+                }`}
             >
               <Send className="w-5 h-5" />
             </button>

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router';
-import { ArrowLeft, Upload, X, Camera } from 'lucide-react';
+import { ArrowLeft, X, Camera } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function JoinCommunity() {
   const navigate = useNavigate();
@@ -33,7 +34,7 @@ export default function JoinCommunity() {
 
   const handleJoin = async () => {
     if (!nickname.trim()) {
-      alert('닉네임을 입력해주세요!');
+      toast.warning('닉네임을 입력해주세요!');
       return;
     }
 
@@ -42,7 +43,7 @@ export default function JoinCommunity() {
       const token = localStorage.getItem('accessToken');
 
       if (!token) {
-        alert('로그인이 필요합니다. 먼저 로그인해주세요.');
+        toast.error('로그인이 필요합니다. 먼저 로그인해주세요.');
         return;
       }
 
@@ -66,30 +67,29 @@ export default function JoinCommunity() {
 
         // 401 Unauthorized - 인증 실패
         if (response.status === 401) {
-          alert('로그인이 만료되었습니다. 다시 로그인해주세요.');
+          toast.error('로그인이 만료되었습니다. 다시 로그인해주세요.');
           return;
         }
 
         // 400 Bad Request - 요청 데이터 오류
         if (response.status === 400) {
-          alert(errorMessage);
+          toast.error(errorMessage);
           return;
         }
 
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      alert('커뮤니티 가입 완료! 🎉');
-      navigate(`/community/${id}`);
+      toast.success('커뮤니티 가입 완료! 🎉');
+      navigate('/');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : '가입 중 오류가 발생했습니다.';
-      alert(errorMessage);
+      toast.error(errorMessage);
       console.error('Join error:', error);
 
       // 네트워크 오류 등
       if (error instanceof TypeError && error.message.includes('fetch')) {
-        alert('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
+        toast.error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
       }
     }
   };

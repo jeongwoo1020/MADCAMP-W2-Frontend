@@ -142,18 +142,27 @@ export default function CommunitySearchResult() {
                     <div className="flex items-center gap-2 mb-2">
                       <Calendar className="w-4 h-4 text-indigo-600" />
                       <span className="text-sm text-gray-700">
-                        인증 요일: {community.cert_days.map(day => {
+                        인증 요일: {(() => {
+                          const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
                           const dayMap: { [key: string]: string } = {
-                            'Mon': '월',
-                            'Tue': '화',
-                            'Wed': '수',
-                            'Thu': '목',
-                            'Fri': '금',
-                            'Sat': '토',
-                            'Sun': '일'
+                            'Mon': '월', 'mon': '월',
+                            'Tue': '화', 'tue': '화',
+                            'Wed': '수', 'wed': '수',
+                            'Thu': '목', 'thu': '목',
+                            'Fri': '금', 'fri': '금',
+                            'Sat': '토', 'sat': '토',
+                            'Sun': '일', 'sun': '일'
                           };
-                          return dayMap[day] || day;
-                        }).join(', ')}
+                          return community.cert_days
+                            .slice()
+                            .sort((a, b) => {
+                              const aIndex = dayOrder.findIndex(d => d.toLowerCase() === a.toLowerCase());
+                              const bIndex = dayOrder.findIndex(d => d.toLowerCase() === b.toLowerCase());
+                              return aIndex - bIndex;
+                            })
+                            .map(day => dayMap[day] || day)
+                            .join(', ');
+                        })()}
                       </span>
                     </div>
                   )}

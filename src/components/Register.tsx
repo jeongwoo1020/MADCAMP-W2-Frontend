@@ -56,6 +56,11 @@ export default function Register() {
         }),
       });
 
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('서버에 연결할 수 없습니다. 백엔드 서버가 실행 중인지 확인해주세요.');
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
