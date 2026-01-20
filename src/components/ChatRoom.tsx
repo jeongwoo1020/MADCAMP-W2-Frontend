@@ -124,21 +124,16 @@ export default function ChatRoom() {
 
     const fetchMessages = async () => {
       try {
-        // [주의] 백엔드 필터링이 없으므로 전체 목록을 가져와서 프론트에서 필터링
-        // (이후 성능 이슈 발생 시 백엔드 get_queryset 수정 필요할 수 있음)
-        const response = await fetch(`/api/chats/`, {
+        // 백엔드에서 제공하는 필터링 된 채팅 내역 API 사용
+        const response = await fetch(`/api/chats/chat_history/?com_uuid=${id}`, {
           headers: { 'Authorization': `Bearer ${accessToken}` }
         });
 
         if (response.ok && isMounted) {
           const data = await response.json();
-          // 현재 커뮤니티의 메시지만 필터링
-          const filtered = data.filter((msg: any) => msg.com_uuid === id);
+          // API에서 이미 com_uuid로 필터링 및 정렬(created_at)되어 반환됨
 
-          // 날짜순 정렬
-          filtered.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-
-          const mappedMessages: Message[] = filtered.map((msg: any) => {
+          const mappedMessages: Message[] = data.map((msg: any) => {
             const sender = memberMap[msg.user_id] || { name: '알 수 없음', avatar: '👤' };
             const timeStr = new Date(msg.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
