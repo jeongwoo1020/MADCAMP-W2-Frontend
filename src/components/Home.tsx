@@ -44,19 +44,50 @@ export default function Home() {
 
         const data = await response.json();
 
-        const mappedCommunities: Community[] = data.map((item: any) => {
-          const { timeLeft, nextPostTime } = calculateCertificationStatus(item.cert_days || [], item.cert_time || '00:00:00');
+        // 각 커뮤니티에 대해 멤버 수와 오늘 인증 수를 가져옴
+        const mappedCommunities: Community[] = await Promise.all(
+          data.map(async (item: any) => {
+            const { timeLeft, nextPostTime } = calculateCertificationStatus(item.cert_days || [], item.cert_time || '00:00:00');
 
-          return {
-            id: item.com_uuid,
-            name: item.com_name,
-            emoji: item.icon_url || '💪',
-            timeLeft,
-            nextPostTime,
-            participants: 0, // Backend constraint
-            postsToday: 0    // Backend constraint
-          };
-        });
+            // 멤버 수 가져오기
+            let memberCount = 0;
+            try {
+              const membersRes = await fetch(`/api/members/get_members/?com_uuid=${item.com_uuid}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (membersRes.ok) {
+                const membersData = await membersRes.json();
+                memberCount = Array.isArray(membersData) ? membersData.length : 0;
+              }
+            } catch (e) {
+              console.error('멤버 수 조회 실패:', e);
+            }
+
+            // 오늘 인증 수 가져오기
+            let postsCount = 0;
+            try {
+              const postsRes = await fetch(`/api/posts/?com_uuid=${item.com_uuid}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+              });
+              if (postsRes.ok) {
+                const postsData = await postsRes.json();
+                postsCount = Array.isArray(postsData) ? postsData.length : 0;
+              }
+            } catch (e) {
+              console.error('포스트 수 조회 실패:', e);
+            }
+
+            return {
+              id: item.com_uuid,
+              name: item.com_name,
+              emoji: item.icon_url || '💪',
+              timeLeft,
+              nextPostTime,
+              participants: memberCount,
+              postsToday: postsCount
+            };
+          })
+        );
 
         setCommunities(mappedCommunities);
       } catch (error) {

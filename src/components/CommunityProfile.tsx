@@ -15,10 +15,22 @@ interface Community {
   weeklyGoal: number;
 }
 
+interface Member {
+  mem_idx: string;
+  nick_name: string;
+  description?: string;
+  cert_cnt: number;
+  is_late_cnt: number;
+  profile_img_url?: string;
+  user_profile_img_url?: string; // User의 프로필 이미지
+  user_id: string;
+}
+
 export default function CommunityProfile() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [community, setCommunity] = useState<Community | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,11 +44,25 @@ export default function CommunityProfile() {
           return;
         }
 
+        // 커뮤니티 정보 가져오기
         const response = await fetch(`/api/communities/${id}/`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
+
+        // 멤버 목록 가져오기
+        const membersRes = await fetch(`/api/members/get_members/?com_uuid=${id}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        let memberList: Member[] = [];
+        if (membersRes.ok) {
+          memberList = await membersRes.json();
+          setMembers(memberList);
+        }
 
         if (response.ok) {
           const data = await response.json();
@@ -76,15 +102,12 @@ export default function CommunityProfile() {
             certDays: koreanDays.join(', '),
             certTime: data.cert_time,
             createdDate: new Date(data.created_at).toLocaleDateString(),
-            participants: data.participant_count || data.member_count || 0,
-            totalPosts: data.post_count || data.posts_count || 0, // Try to get real counts if available
+            participants: memberList.length, // 실제 멤버 수
+            totalPosts: data.post_count || data.posts_count || 0,
             weeklyGoal: parsedDays.length || 0,
           });
         } else {
           console.warn('API call failed');
-          // Dummy fallback removed or kept minimal if network fails completely?
-          // Let's keep dummy data only if really needed, but user asked for REAL API.
-          // Showing error might be better, but sticking to previous pattern:
           setError("정보를 불러올 수 없습니다.");
         }
       } catch (err) {
@@ -131,13 +154,7 @@ export default function CommunityProfile() {
     { label: '참여율', value: '0%', icon: TrendingUp } // Placeholder as per backend limits
   ];
 
-  const recentMembers = [
-    { name: '김철수', avatar: '👨', posts: 24, level: '🔥' },
-    { name: '박영희', avatar: '👩', posts: 18, level: '⭐' },
-    { name: '이민수', avatar: '🧑', posts: 31, level: '🔥' },
-    { name: '최지은', avatar: '👧', posts: 22, level: '⭐' },
-    { name: '정민호', avatar: '👦', posts: 15, level: '💫' }
-  ];
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -204,32 +221,54 @@ export default function CommunityProfile() {
 
         {/* 멤버 목록 */}
         <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-100">
-          <h3 className="font-bold text-gray-900 mb-4">활동 멤버</h3>
+          <h3 className="font-bold text-gray-900 mb-4">활동 멤버 ({members.length}명)</h3>
           <div className="space-y-3">
-            {recentMembers.map((member, index) => (
-              <div
-                key={index}
-                className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="text-2xl">{member.avatar}</div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-gray-900">{member.name}</p>
-                      <span>{member.level}</span>
+            {members.length === 0 ? (
+              <p className="text-gray-500 text-sm text-center py-4">아직 멤버가 없습니다</p>
+            ) : (
+              members
+                .slice()
+                .sort((a, b) => b.cert_cnt - a.cert_cnt)
+                .map((member, index) => {
+                  const getLevel = (certCnt: number) => {
+                    if (certCnt >= 30) return '🔥';
+                    if (certCnt >= 20) return '⭐';
+                    if (certCnt >= 10) return '💫';
+                    return '🌱';
+                  };
+                  const avatar = member.profile_img_url || member.user_profile_img_url || '👤';
+                  const isUrl = avatar.startsWith('http') || avatar.startsWith('/') || avatar.startsWith('data:');
+
+                  return (
+                    <div
+                      key={member.mem_idx}
+                      className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0"
+                    >
+                      <div className="flex items-center gap-3">
+                        {isUrl ? (
+                          <img src={avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="text-2xl">{avatar}</div>
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-gray-900">{member.nick_name || '익명'}</p>
+                            <span>{getLevel(member.cert_cnt)}</span>
+                          </div>
+                          <p className="text-sm text-gray-500">{member.cert_cnt}회 인증</p>
+                        </div>
+                      </div>
+                      {index < 3 && (
+                        <div className="text-lg">
+                          {index === 0 && '🥇'}
+                          {index === 1 && '🥈'}
+                          {index === 2 && '🥉'}
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-gray-500">{member.posts}회 인증</p>
-                  </div>
-                </div>
-                {index < 3 && (
-                  <div className="text-lg">
-                    {index === 0 && '🥇'}
-                    {index === 1 && '🥈'}
-                    {index === 2 && '🥉'}
-                  </div>
-                )}
-              </div>
-            ))}
+                  );
+                })
+            )}
           </div>
         </div>
 

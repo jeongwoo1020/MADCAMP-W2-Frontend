@@ -13,6 +13,14 @@ interface UserProfile {
   created_at: string;
 }
 
+interface PostHistory {
+  post_id: string;
+  com_name: string;
+  created_at: string;
+  image_url: string;
+  is_late: boolean;
+}
+
 export default function MyPage() {
   const navigate = useNavigate();
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -31,13 +39,14 @@ export default function MyPage() {
     }
     return null;
   });
+  const [postHistory, setPostHistory] = useState<PostHistory[]>([]);
   const [loading, setLoading] = useState(!userProfile);
   const [error, setError] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   useEffect(() => {
     console.log("마이페이지가 렌더링되었습니다. 문구 색상: 회색(#6b7280)");
-    const fetchUserProfile = async () => {
+    const fetchData = async () => {
       try {
         if (!userProfile) setLoading(true);
         setError(null);
@@ -46,7 +55,8 @@ export default function MyPage() {
 
         if (token) {
           try {
-            const response = await fetch('/api/users/me/', {
+            // 1. 프로필 정보 가져오기
+            const profileResponse = await fetch('/api/users/me/', {
               method: 'GET',
               headers: {
                 'Authorization': `Bearer ${token}`,
@@ -54,41 +64,57 @@ export default function MyPage() {
               },
             });
 
-            if (response.ok) {
-              const data: UserProfile = await response.json();
+            if (profileResponse.ok) {
+              const data: UserProfile = await profileResponse.json();
               setUserProfile(data);
-              setLoading(false);
-              return;
-            } else if (response.status === 401) {
+            } else if (profileResponse.status === 401) {
+              throw new Error('Unauthorized');
+            }
+
+            // 2. 포스트 히스토리 가져오기 (캘린더용)
+            const historyResponse = await fetch('/api/posts/my-history/', {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            });
+
+            if (historyResponse.ok) {
+              const historyData: PostHistory[] = await historyResponse.json();
+              setPostHistory(historyData);
+            }
+
+            setLoading(false);
+          } catch (apiError) { // apiError가 any 타입으로 추론될 수 있음
+            if (apiError instanceof Error && apiError.message === 'Unauthorized') {
               localStorage.removeItem('accessToken');
               localStorage.removeItem('refreshToken');
               localStorage.removeItem('isLoggedIn');
               navigate('/login');
               return;
             }
-          } catch (apiError) {
             console.error('API 호출 실패:', apiError);
           }
         } else {
           navigate('/login');
           return;
         }
-        setError('로그인이 필요합니다.');
-        toast.error('로그인이 필요합니다.');
       } catch (err) {
         setError(err instanceof Error ? err.message : '오류가 발생했습니다.');
         toast.error(err instanceof Error ? err.message : '오류가 발생했습니다.');
         console.error('Profile fetch error:', err);
       } finally {
-        setLoading(false);
+        setLoading(false); // Ensure loading is false even if error occurs
       }
     };
 
-    fetchUserProfile();
+    fetchData();
   }, [navigate]);
 
   // 가입일로부터 며칠 지났는지 계산 (D-Day)
   const calculateDaysSince = (dateString: string) => {
+    if (!dateString) return 1;
     const createdDate = new Date(dateString);
     const today = new Date();
     createdDate.setHours(0, 0, 0, 0);
@@ -134,19 +160,19 @@ export default function MyPage() {
 
   const passionScore = Math.round(userProfile.score);
 
-  const workoutDates = [
-    { date: 5, workouts: ['🏀', '🏃'] },
-    { date: 6, workouts: ['💪'] },
-    { date: 7, workouts: ['🏀'] },
-    { date: 9, workouts: ['🏊', '🏃'] },
-    { date: 12, workouts: ['🏀', '💪'] },
-    { date: 13, workouts: ['🏃'] },
-    { date: 14, workouts: ['🏀', '🏊'] },
-    { date: 16, workouts: ['💪'] },
-    { date: 19, workouts: ['🏀', '🏃', '💪'] },
-    { date: 20, workouts: ['🏊'] },
-    { date: 21, workouts: ['🏀'] }
-  ];
+  // const workoutDates = [
+  //   { date: 5, workouts: ['🏀', '🏃'] },
+  //   { date: 6, workouts: ['💪'] },
+  //   { date: 7, workouts: ['🏀'] },
+  //   { date: 9, workouts: ['🏊', '🏃'] },
+  //   { date: 12, workouts: ['🏀', '💪'] },
+  //   { date: 13, workouts: ['🏃'] },
+  //   { date: 14, workouts: ['🏀', '🏊'] },
+  //   { date: 16, workouts: ['💪'] },
+  //   { date: 19, workouts: ['🏀', '🏃', '💪'] },
+  //   { date: 20, workouts: ['🏊'] },
+  //   { date: 21, workouts: ['🏀'] }
+  // ];
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -160,9 +186,22 @@ export default function MyPage() {
 
   const { daysInMonth, startingDayOfWeek } = getDaysInMonth(currentMonth);
 
-  const getWorkoutsForDate = (day: number) => {
-    const workout = workoutDates.find(w => w.date === day);
-    return workout?.workouts || [];
+  const getPostsForDate = (day: number) => {
+    const year = currentMonth.getFullYear();
+    const month = currentMonth.getMonth(); // 0-indexed
+
+    // Create start and end of the day in local time or UTC? 
+    // Usually backend returns ISO string. Let's compare date parts.
+    // Assuming backend returns UTC ISO string, we should convert to local dateString for comparison
+
+    // Simple approach: Match YYYY-MM-DD
+    const targetDateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+
+    return postHistory.filter(post => {
+      const postDate = new Date(post.created_at);
+      const postDateStr = `${postDate.getFullYear()}-${String(postDate.getMonth() + 1).padStart(2, '0')}-${String(postDate.getDate()).padStart(2, '0')}`;
+      return postDateStr === targetDateStr;
+    });
   };
 
   const previousMonth = () => {
@@ -175,9 +214,12 @@ export default function MyPage() {
 
   const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월'];
 
+  // Calculate unique active days
+  const uniqueActiveDays = new Set(postHistory.map(p => p.created_at.split('T')[0])).size;
+
   const stats = [
-    { label: '총 인증', value: 0, icon: Calendar, color: 'indigo' },
-    { label: '활동일', value: '0일', icon: TrendingUp, color: 'purple' },
+    { label: '총 인증', value: postHistory.length, icon: Calendar, color: 'indigo' },
+    { label: '활동일', value: `${uniqueActiveDays}일`, icon: TrendingUp, color: 'purple' },
     { label: '커뮤니티', value: userProfile.interests?.length || 0, icon: Users, color: 'pink' }
   ];
 
@@ -334,16 +376,23 @@ export default function MyPage() {
             {[...Array(startingDayOfWeek)].map((_, i) => <div key={i} />)}
             {[...Array(daysInMonth)].map((_, i) => {
               const day = i + 1;
-              const workouts = getWorkoutsForDate(day);
+              const posts = getPostsForDate(day);
               return (
                 <div
                   key={day}
-                  className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs ${workouts.length ? 'font-bold' : 'text-gray-400'}`}
-                  style={workouts.length ? { backgroundColor: '#fefce8', color: '#ca8a04' } : {}}
+                  className={`aspect-square rounded-lg flex flex-col items-center justify-start pt-1.5 text-xs ${posts.length ? 'font-bold bg-indigo-50 text-indigo-900' : 'text-gray-400'}`}
                 >
-                  {day}
-                  <div className="flex gap-0.5 mt-0.5">
-                    {workouts.slice(0, 2).map((w, idx) => <span key={idx} className="scale-75">{w}</span>)}
+                  <span className="text-[10px] leading-none mb-1">{day}</span>
+                  <div className="flex flex-wrap justify-center gap-0.5 px-0.5 w-full">
+                    {posts.slice(0, 4).map((p, idx) => ( // Show up to 4 dots
+                      <div key={idx} className="relative w-4 h-4 md:w-5 md:h-5">
+                        <img
+                          src={p.image_url}
+                          alt={p.com_name}
+                          className="w-full h-full rounded-full object-cover border border-white shadow-sm"
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               );

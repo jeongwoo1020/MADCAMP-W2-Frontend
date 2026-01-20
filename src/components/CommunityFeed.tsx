@@ -5,6 +5,7 @@ import { ArrowLeft, Camera, MessageCircle, Trophy, Info, Flame, Send, X, Loader2
 
 interface Post {
   id: string;
+  userId: string; // 추가
   userName: string;
   userAvatar: string;
   imageUrl: string;
@@ -18,7 +19,7 @@ export default function CommunityFeed() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [touchStart, setTouchStart] = useState(0);
   const [touchEnd, setTouchEnd] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0); // 드래그 거리 상태 추가
+  const [dragOffset, setDragOffset] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'bounce-right' | null>(null);
 
   // 공유 모달 상태
@@ -37,63 +38,118 @@ export default function CommunityFeed() {
     }
   }, [showToast]);
 
-  const [posts] = useState<Post[]>([
-    {
-      id: '1',
-      userName: '김철수',
-      userAvatar: '👨',
-      imageUrl: 'https://images.unsplash.com/photo-1546483875-ad9014c88eba?w=800',
-      timestamp: '5분 전'
-    },
-    {
-      id: '2',
-      userName: '박영희',
-      userAvatar: '👩',
-      imageUrl: 'https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=800',
-      timestamp: '12분 전'
-    },
-    {
-      id: '3',
-      userName: '이민수',
-      userAvatar: '🧑',
-      imageUrl: 'https://images.unsplash.com/photo-1571902943202-507ec2618e8f?w=800',
-      timestamp: '23분 전'
-    },
-    {
-      id: '4',
-      userName: '최지은',
-      userAvatar: '👧',
-      imageUrl: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=800',
-      timestamp: '35분 전'
-    }
-  ]);
-
+  const [posts, setPosts] = useState<Post[]>([]);
   const [communityInfo, setCommunityInfo] = useState({ name: '', emoji: '', certDays: [] as string[] });
 
   useEffect(() => {
-    const fetchCommunityInfo = async () => {
+    const fetchData = async () => {
       if (!id) return;
       setLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const response = await fetch(`/api/communities/${id}/`, {
-          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setCommunityInfo({
+        const myUserId = localStorage.getItem('userId') || localStorage.getItem('user_id'); // 내 ID 가져오기
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // 커뮤니티 정보 가져오기
+        const communityRes = await fetch(`/api/communities/${id}/`, { headers });
+        if (communityRes.ok) {
+          const data = await communityRes.json();
+          let parsedDays: string[] = [];
+          if (Array.isArray(data.cert_days)) {
+            parsedDays = data.cert_days;
+          } else if (typeof data.cert_days === 'string') {
+            parsedDays = data.cert_days.replace(/[\[\]"']/g, '').split(',').map((s: string) => s.trim());
+          }
+
+          setCommunityInfo(prev => ({
+            ...prev,
             name: data.com_name,
             emoji: data.icon_url || '💪',
-            certDays: Array.isArray(data.cert_days) ? data.cert_days : []
+            certDays: parsedDays,
+          }));
+        }
+
+        // 2. 멤버 목록 가져오기 (닉네임 매핑 & 전체 멤버 수 확인용)
+        // 삭제되었던 로직 복구
+        let memberMap: Record<string, { name: string, avatar: string }> = {};
+        const membersRes = await fetch(`/api/members/get_members/?com_uuid=${id}`, { headers });
+
+        if (membersRes.ok) {
+          const membersData = await membersRes.json();
+          console.log('--- Fetched Members Data ---', membersData); // [디버깅] API 응답 전체 확인
+
+          setCommunityInfo(prev => ({ ...prev, totalMembers: membersData.length }));
+
+          membersData.forEach((m: any) => {
+            // 백엔드 필드명이 불확실하므로 가능한 모든 필드 체크
+            const displayName = m.nick_name || m.nickname || m.user_name || m.userName || m.user_details?.user_name || m.user_details?.username || '알 수 없음';
+            const displayAvatar = m.profile_img_url || m.user_profile_img_url || m.profile_url || m.user_details?.profile_img_url || '👤';
+
+            console.log(`Member ${m.user_id}: Name=${displayName}, Avatar=${displayAvatar}`); // [디버깅] 매핑 결과 확인
+
+            memberMap[m.user_id] = {
+              name: displayName,
+              avatar: displayAvatar
+            };
           });
         }
+
+        // 오늘의 포스트 가져오기
+        const postsRes = await fetch(`/api/posts/?com_uuid=${id}`, { headers });
+        if (postsRes.ok) {
+          const postsData = await postsRes.json();
+          const mappedPosts: Post[] = postsData.map((post: any) => {
+            const createdAt = new Date(post.created_at);
+            const now = new Date();
+            const diffMs = now.getTime() - createdAt.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            let timestamp = '';
+            if (diffMins < 60) {
+              timestamp = `${diffMins}분 전`;
+            } else {
+              const diffHours = Math.floor(diffMins / 60);
+              timestamp = `${diffHours}시간 전`;
+            }
+
+            const memberInfo = memberMap[post.user_id] || { name: '알 수 없음', avatar: '👤' };
+
+            return {
+              id: post.post_id,
+              userId: post.user_id, // API에서 user_id 매핑
+              userName: memberInfo.name,
+              userAvatar: memberInfo.avatar,
+              imageUrl: post.image_url,
+              timestamp
+            };
+          });
+          setPosts(mappedPosts);
+
+          // [핵심 수정] 서버 데이터를 기준으로 인증 여부 판단 (로컬 스토리지 무시)
+          // 내 ID로 작성된 포스트가 목록에 있는지 확인
+          if (myUserId) {
+            const myPost = mappedPosts.find(p => p.userId === myUserId);
+            if (myPost) {
+              setHasPostedToday(true);
+            } else {
+              setHasPostedToday(false);
+              // 로컬 스토리지의 잘못된 데이터 삭제 (선택 사항)
+              localStorage.removeItem(`hasPostedToday_${id}`);
+            }
+          } else {
+            // 비로그인 상태면 false
+            setHasPostedToday(false);
+          }
+        }
       } catch (error) {
-        console.error("Failed to fetch community info", error);
+        console.error("Failed to fetch data", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchCommunityInfo();
+    fetchData();
   }, [id]);
 
   // 페이지 진입 시 스크롤 잠금 (주소창 고정 효과)
@@ -107,18 +163,7 @@ export default function CommunityFeed() {
     };
   }, []);
 
-  // 오늘 인증 여부 확인
-  useEffect(() => {
-    const checkHasPostedToday = () => {
-      const today = new Date().toDateString();
-      const savedDate = localStorage.getItem(`hasPostedToday_${id}`);
-      setHasPostedToday(savedDate === today);
-    };
-    checkHasPostedToday();
-    const handleFocus = () => checkHasPostedToday();
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [id]);
+  // 기존 로컬스토리지 체크 로직(useEfect) 제거됨 -> API 데이터 기반으로 통합됨
 
   const handleTouchStart = (e: React.TouchEvent) => {
     setTouchStart(e.targetTouches[0].clientX);
@@ -250,94 +295,111 @@ export default function CommunityFeed() {
           <div className="flex-none flex items-center justify-between mb-2">
             <h3 className="font-semibold text-gray-900">오늘의 인증</h3>
             <div className="text-sm text-gray-500">
-              {currentIndex + 1} / {posts.length}
+              {posts.length > 0 ? `${currentIndex + 1} / ${posts.length}` : '0개'}
             </div>
           </div>
 
           <div className="flex-1 relative w-full">
-            {getVisibleCards().map((post, idx) => {
-              const isTop = idx === 0;
-              const stackOffset = 0; // 스택 오프셋 제거 (모두 같은 위치)
-              const scale = 1; // 스케일 효과 제거 (항상 1)
+            {posts.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center bg-gray-100 rounded-3xl">
+                <Camera className="w-16 h-16 text-gray-300 mb-4" />
+                <p className="text-gray-500 font-medium">오늘 올라온 인증이 없습니다</p>
+                <p className="text-gray-400 text-sm mt-1">첫 번째 인증을 올려보세요!</p>
+              </div>
+            ) : (
+              getVisibleCards().map((post, idx) => {
+                const isTop = idx === 0;
 
-              return (
-                <div
-                  key={`${post.id}-${idx}`}
-                  className={`absolute inset-x-0 top-0 bottom-0 transition-all duration-300 ${isTop ? 'z-30' : idx === 1 ? 'z-20' : 'z-10'
-                    } ${swipeDirection === 'left' && isTop
-                      ? '-translate-x-full rotate-[-20deg] opacity-0'
-                      : swipeDirection === 'right' && isTop
-                        ? 'translate-x-full rotate-[20deg] opacity-0'
-                        : ''
-                    }`}
-                  style={{
-                    top: `${stackOffset}px`,
-                    bottom: `${stackOffset * 2}px`,
-                    // 최상단 카드는 드래그/스와이프에 따라 움직임
-                    transform: isTop
-                      ? (swipeDirection
-                        ? '' // 스와이프 애니메이션 중일 때는 클래스(animate)가 제어
-                        : `translateX(${dragOffset}px) rotate(${dragOffset * 0.1}deg) scale(${scale})` // 드래그 중일 때는 실시간 좌표
-                      )
-                      : `scale(${scale})`, // 나머지 카드는 스케일만
-                    transformOrigin: 'bottom center',
-                    transition: dragOffset !== 0 ? 'none' : 'all 0.3s ease-out' // 드래그 중에는 딜레이 없음, 놓으면 부드럽게 복귀
-                  }}
-                  onTouchStart={isTop ? handleTouchStart : undefined}
-                  onTouchMove={isTop ? handleTouchMove : undefined}
-                  onTouchEnd={isTop ? handleTouchEnd : undefined}
-                >
-                  {/* [수정됨] 배경을 검은색으로, 이미지를 contain으로 변경 */}
-                  <div className="bg-black rounded-3xl overflow-hidden shadow-xl h-full flex flex-col border border-gray-100 relative">
-                    <img
-                      src={post.imageUrl}
-                      alt={post.userName}
-                      className={`w-full h-full object-contain ${!hasPostedToday ? 'blur-lg' : ''}`}
-                    />
+                return (
+                  <div
+                    key={`${post.id}-${idx}`}
+                    className={`absolute inset-0 w-full h-full transition-all duration-300 ${isTop ? 'z-30' : idx === 1 ? 'z-20' : 'z-10'
+                      } ${swipeDirection === 'left' && isTop
+                        ? '-translate-x-full rotate-[-20deg] opacity-0'
+                        : swipeDirection === 'right' && isTop
+                          ? 'translate-x-full rotate-[20deg] opacity-0'
+                          : ''
+                      }`}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      // 최상단 카드는 드래그/스와이프에 따라 움직임
+                      transform: isTop
+                        ? (swipeDirection
+                          ? '' // 스와이프 애니메이션 중일 때는 클래스(animate)가 제어
+                          : `translateX(${dragOffset}px) rotate(${dragOffset * 0.1}deg)` // 드래그 중일 때는 실시간 좌표
+                        )
+                        : 'none', // 나머지 카드는 변형 없음
+                      transformOrigin: 'bottom center',
+                      transition: dragOffset !== 0 ? 'none' : 'all 0.3s ease-out' // 드래그 중에는 딜레이 없음, 놓으면 부드럽게 복귀
+                    }}
+                    onTouchStart={isTop ? handleTouchStart : undefined}
+                    onTouchMove={isTop ? handleTouchMove : undefined}
+                    onTouchEnd={isTop ? handleTouchEnd : undefined}
+                  >
+                    {/* [수정됨] 배경을 검은색으로, 이미지를 contain으로 변경 */}
+                    <div className={`rounded-3xl overflow-hidden shadow-xl h-full flex flex-col border border-gray-100 relative ${!hasPostedToday ? 'bg-gray-200' : 'bg-black'}`}>
+                      <img
+                        src={`${post.imageUrl}?t=${new Date(post.timestamp).getTime() || idx}`}
+                        alt={post.userName}
+                        className={`w-full h-full ${!hasPostedToday ? 'object-cover blur-xl opacity-80' : 'object-contain'}`}
+                        onError={(e) => {
+                          console.error('Image load failed:', post.imageUrl);
+                          e.currentTarget.src = 'https://via.placeholder.com/300?text=No+Image';
+                        }}
+                      />
 
-                    {!hasPostedToday && (
-                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-                        <div className="text-center text-white">
-                          <Camera className="w-8 h-8 mx-auto mb-1 opacity-80" />
-                          <p className="text-xs font-medium">인증 후 확인</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {hasPostedToday && (
-                      <>
-                        <div className="absolute top-4 left-4 bg-black/60 rounded-2xl px-3 py-2 z-20">
-                          <div className="flex items-center gap-2 text-white">
-                            <span className="text-2xl">{post.userAvatar}</span>
-                            <div>
-                              <p className="font-bold text-sm">{post.userName}</p>
-                              <p className="text-xs text-white/80">{post.timestamp}</p>
-                            </div>
+                      {!hasPostedToday && (
+                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
+                          <div className="text-center text-white">
+                            <Camera className="w-8 h-8 mx-auto mb-1 opacity-80" />
+                            <p className="text-xs font-medium">인증 후 확인</p>
                           </div>
                         </div>
+                      )}
 
-                        {isTop && (
-                          <>
-                            <div className="absolute bottom-4 left-4 bg-black/60 rounded-full p-3 z-20">
-                              <ArrowLeft className="w-5 h-5 text-white" />
+                      {hasPostedToday && (
+                        <>
+                          <div className="absolute top-4 left-4 bg-black/60 rounded-2xl px-3 py-2 z-20">
+                            <div className="flex items-center gap-2 text-white">
+                              {post.userAvatar.startsWith('http') || post.userAvatar.startsWith('/') ? (
+                                <img
+                                  src={post.userAvatar}
+                                  alt="Profile"
+                                  className="w-10 h-10 rounded-full object-cover border-2 border-white/20"
+                                />
+                              ) : (
+                                <span className="text-2xl">{post.userAvatar}</span>
+                              )}
+                              <div>
+                                <p className="font-bold text-sm">{post.userName}</p>
+                                <p className="text-xs text-white/80">{post.timestamp}</p>
+                              </div>
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowToast(true);
-                              }}
-                              className="absolute bottom-4 right-4 bg-purple-600 text-white rounded-full p-3 active:scale-95 transition-transform z-20 shadow-lg"
-                            >
-                              <Send className="w-5 h-5 text-white" />
-                            </button>
-                          </>
-                        )}
-                      </>
-                    )}
+                          </div>
+
+                          {isTop && (
+                            <>
+                              <div className="absolute bottom-4 left-4 bg-black/60 rounded-full p-3 z-20">
+                                <ArrowLeft className="w-5 h-5 text-white" />
+                              </div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShowToast(true);
+                                }}
+                                className="absolute bottom-4 right-4 bg-purple-600 text-white rounded-full p-3 active:scale-95 transition-transform z-20 shadow-lg"
+                              >
+                                <Send className="w-5 h-5 text-white" />
+                              </button>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              }))}
           </div>
         </div>
 

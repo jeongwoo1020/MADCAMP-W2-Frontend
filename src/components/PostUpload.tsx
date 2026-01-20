@@ -36,13 +36,52 @@ export default function PostUpload() {
     }, 100);
   };
 
-  const handleUpload = () => {
-    if (capturedImage) {
-      // 오늘 날짜를 키로 인증 완료 저장
-      const today = new Date().toDateString();
-      localStorage.setItem(`hasPostedToday_${id}`, today);
-      alert('인증 완료! 🎉');
-      navigate(`/community/${id}`);
+  // DataURL을 Blob으로 변환하는 헬퍼 함수
+  const dataURLtoBlob = (dataurl: string) => {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)![1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mime });
+  };
+
+  const handleUpload = async () => {
+    if (!capturedImage || !id) return;
+
+    try {
+      const blob = dataURLtoBlob(capturedImage);
+      const formData = new FormData();
+      formData.append('com_uuid', id);
+      formData.append('image_url', blob, 'upload.jpg');
+      formData.append('latitude', '0.0');
+      formData.append('longitude', '0.0');
+
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('/api/posts/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        // 오늘 날짜를 키로 인증 완료 저장
+        const today = new Date().toDateString();
+        localStorage.setItem(`hasPostedToday_${id}`, today);
+        alert('인증 완료! 🎉');
+        navigate(`/community/${id}`);
+      } else {
+        const errorData = await response.json();
+        alert(`업로드 실패: ${errorData.error || '알 수 없는 오류'}`);
+      }
+    } catch (error) {
+      console.error('Upload failed:', error);
+      alert('업로드 중 오류가 발생했습니다.');
     }
   };
 
