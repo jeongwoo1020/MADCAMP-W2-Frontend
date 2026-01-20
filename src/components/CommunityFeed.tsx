@@ -255,12 +255,18 @@ export default function CommunityFeed() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            {/* Simple image check similar to other components */}
-            {(communityInfo.emoji?.startsWith('http') || communityInfo.emoji?.startsWith('/') || communityInfo.emoji?.startsWith('data:')) ? (
-              <img src={communityInfo.emoji} alt="icon" className="w-8 h-8 rounded-full object-cover" />
-            ) : (
-              <span className="text-2xl">{communityInfo.emoji || '💪'}</span>
-            )}
+            {/* Image rendering fix */}
+            {(() => {
+              const icon = communityInfo.emoji;
+              const cleanIcon = icon?.trim() || '';
+              const isImage = cleanIcon.startsWith('http') || cleanIcon.startsWith('/') || cleanIcon.includes('data:');
+
+              if (isImage) {
+                return <img src={cleanIcon} alt="icon" className="w-8 h-8 rounded-full object-cover" />;
+              }
+              // 텍스트가 너무 길면(Base64 깨짐 등) 이모지 대신 기본값 출력
+              return <span className="text-2xl">{(!icon || icon.length > 20) ? '💪' : icon}</span>;
+            })()}
             <span className="font-bold text-gray-900">{communityInfo.name || '커뮤니티'}</span>
           </div>
           <button onClick={() => navigate(`/community/${id}/profile`)} className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">

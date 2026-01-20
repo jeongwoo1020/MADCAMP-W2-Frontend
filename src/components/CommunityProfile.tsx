@@ -169,7 +169,8 @@ export default function CommunityProfile() {
     if (isUrl) {
       return <img src={icon} alt="icon" className="w-20 h-20 rounded-full object-cover mx-auto mb-4" />;
     }
-    return <div className="text-6xl mb-4">{icon}</div>;
+    // 길이가 길면 텍스트 렌더링 방지
+    return <div className="text-6xl mb-4">{(!icon || icon.length > 10) ? '🏆' : icon}</div>;
   };
 
   const stats = [
@@ -261,8 +262,8 @@ export default function CommunityProfile() {
                     if (certCnt >= 10) return '💫';
                     return '🌱';
                   };
-                  const avatar = member.profile_img_url || member.user_profile_img_url || '👤';
-                  const isUrl = avatar.startsWith('http') || avatar.startsWith('/') || avatar.startsWith('data:');
+                  const avatar = (member.profile_img_url || member.user_profile_img_url || '👤').trim().replace(/['"]/g, '');
+                  const isUrl = avatar.startsWith('http') || avatar.startsWith('/') || avatar.includes('data:');
 
                   return (
                     <div
@@ -273,7 +274,7 @@ export default function CommunityProfile() {
                         {isUrl ? (
                           <img src={avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
                         ) : (
-                          <div className="text-2xl">{avatar}</div>
+                          <div className="text-2xl">{avatar.length > 5 ? '👤' : avatar}</div>
                         )}
                         <div>
                           <div className="flex items-center gap-2">

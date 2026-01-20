@@ -1,6 +1,6 @@
 import { useNavigate, useParams } from 'react-router';
-import { ArrowLeft, Flame, X } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, Flame, X, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 
 interface ShameUser {
   id: string;
@@ -15,41 +15,73 @@ export default function HallOfShame() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  const [shameUsers] = useState<ShameUser[]>([
-    {
-      id: '1',
-      name: '김태만',
-      avatar: '😭',
-      shameImage: 'https://images.unsplash.com/photo-1604480133435-4b54f96b9a2f?w=800',
-      missedDays: 3,
-      lastActive: '3일 전'
-    },
-    {
-      id: '2',
-      name: '이나태',
-      avatar: '😰',
-      shameImage: 'https://images.unsplash.com/photo-1577923281135-d6c05294019f?w=800',
-      missedDays: 2,
-      lastActive: '2일 전'
-    },
-    {
-      id: '3',
-      name: '박게으름',
-      avatar: '🥱',
-      shameImage: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=800',
-      missedDays: 5,
-      lastActive: '5일 전'
+  const [shameUsers, setShameUsers] = useState<ShameUser[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [communityInfo, setCommunityInfo] = useState({ name: '커뮤니티', emoji: '🏆' });
+
+  useEffect(() => {
+    const fetchShameData = async () => {
+      if (!id) return;
+
+      try {
+        const token = localStorage.getItem('accessToken');
+        const headers: Record<string, string> = {};
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        // 1. 커뮤니티 정보 가져오기 (이름, 이모지)
+        const comRes = await fetch(`/api/communities/${id}/`, { headers });
+        if (comRes.ok) {
+          const comData = await comRes.json();
+          setCommunityInfo({
+            name: comData.com_name,
+            emoji: comData.icon_url || '🏆'
+          });
+        }
+
+        // 2. 수치의 전당 데이터 가져오기
+        const shameRes = await fetch(`/api/communities/${id}/hall_of_shame/`, { headers });
+        if (shameRes.ok) {
+          const shameData = await shameRes.json();
+          // API 응답 구조에 맞춰 매핑
+          const mappedUsers = shameData.map((user: any) => ({
+            id: user.user_id || Math.random().toString(),
+            name: user.nick_name || user.user_name || '익명',
+            avatar: (user.profile_img_url || '👤').trim().replace(/['"]/g, ''),
+            shameImage: (user.shame_img_url || 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800').trim().replace(/['"]/g, ''),
+            missedDays: user.continuous_missed_days || 1, // 백엔드에서 주면 사용, 안주면 1일
+            lastActive: user.last_active_date ? new Date(user.last_active_date).toLocaleDateString() : '최근'
+          }));
+          setShameUsers(mappedUsers);
+        }
+      } catch (error) {
+        console.error("Failed to fetch hall of shame data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShameData();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      </div>
+    );
+  }
+
+  const renderIcon = (icon: string) => {
+    if (!icon) return '👤';
+    const cleanIcon = icon.trim();
+    if (cleanIcon.startsWith('http') || cleanIcon.startsWith('/') || cleanIcon.includes('data:')) {
+      return <img src={cleanIcon} alt="icon" className="w-full h-full rounded-full object-cover" />;
     }
-  ]);
-
-  const communityData = {
-    '1': { name: '농구', emoji: '🏀' },
-    '2': { name: '수영', emoji: '🏊' },
-    '3': { name: '러닝크루', emoji: '🏃' },
-    '4': { name: '헬스', emoji: '💪' }
+    // 길이가 긴 텍스트(Base64 등)는 화면에 출력하지 않고 기본 아이콘 대체
+    return cleanIcon.length > 50 ? '👤' : icon;
   };
-
-  const community = communityData[id as keyof typeof communityData] || communityData['1'];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50">
@@ -63,7 +95,9 @@ export default function HallOfShame() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <span className="text-2xl">{community.emoji}</span>
+            <span className="text-2xl w-8 h-8 flex items-center justify-center overflow-hidden rounded-full">
+              {renderIcon(communityInfo.emoji)}
+            </span>
             <h1 className="text-xl font-bold">수치의 전당</h1>
           </div>
           <div className="w-10"></div>
@@ -83,7 +117,7 @@ export default function HallOfShame() {
             </div>
           </div>
           <p className="text-sm text-white/90 leading-relaxed">
-            어제 인증을 하지 않은 멤버들의 수치 사진이 공개됩니다. 
+            어제 인증을 하지 않은 멤버들의 수치 사진이 공개됩니다.
             모두가 인증하면 아무도 등장하지 않아요!
           </p>
         </div>
@@ -108,11 +142,10 @@ export default function HallOfShame() {
                 <div className="relative">
                   {/* 순위 배지 */}
                   <div className="absolute top-4 left-4 z-10">
-                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-lg ${
-                      index === 0 ? 'bg-gradient-to-br from-red-600 to-red-500' :
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-white shadow-lg ${index === 0 ? 'bg-gradient-to-br from-red-600 to-red-500' :
                       index === 1 ? 'bg-gradient-to-br from-orange-600 to-orange-500' :
-                      'bg-gradient-to-br from-yellow-600 to-yellow-500'
-                    }`}>
+                        'bg-gradient-to-br from-yellow-600 to-yellow-500'
+                      }`}>
                       {index + 1}위
                     </div>
                   </div>
@@ -123,14 +156,20 @@ export default function HallOfShame() {
                       src={user.shameImage}
                       alt={user.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        console.error('Image load failed for:', user.name);
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1517649763962-0c623066013b?w=800';
+                      }}
                     />
                     {/* 오버레이 */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                    
+
                     {/* 사용자 정보 */}
                     <div className="absolute bottom-0 left-0 right-0 p-6 text-white">
                       <div className="flex items-center gap-3 mb-2">
-                        <div className="text-3xl">{user.avatar}</div>
+                        <div className="w-10 h-10 flex items-center justify-center text-3xl">
+                          {renderIcon(user.avatar)}
+                        </div>
                         <div>
                           <p className="font-bold text-lg">{user.name}</p>
                           <p className="text-sm text-white/80">마지막 활동: {user.lastActive}</p>
