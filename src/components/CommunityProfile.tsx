@@ -60,8 +60,32 @@ export default function CommunityProfile() {
 
         let memberList: Member[] = [];
         if (membersRes.ok) {
-          memberList = await membersRes.json();
-          setMembers(memberList);
+          const membersData = await membersRes.json();
+
+          // 멤버 정보 보완 (닉네임/아바타 누락 시 유저 정보 조회)
+          const enrichedMembers = await Promise.all(membersData.map(async (m: any) => {
+            let name = m.nick_name || m.nickname || m.user_name || m.user_details?.user_name;
+            let avatar = m.profile_img_url || m.user_profile_img_url || m.user_details?.profile_img_url;
+
+            if ((!name || !avatar) && m.user_id) {
+              try {
+                const uRes = await fetch(`/api/users/${m.user_id}/`, { headers: { 'Authorization': `Bearer ${token}` } });
+                if (uRes.ok) {
+                  const uData = await uRes.json();
+                  if (!name) name = uData.user_name;
+                  if (!avatar) avatar = uData.profile_img_url;
+                }
+              } catch (e) { console.error(e); }
+            }
+
+            return {
+              ...m,
+              nick_name: name || '익명',
+              profile_img_url: avatar
+            };
+          }));
+
+          setMembers(enrichedMembers);
         }
 
         if (response.ok) {
@@ -140,7 +164,8 @@ export default function CommunityProfile() {
   }
 
   const renderCommunityIcon = (icon: string) => {
-    const isUrl = icon.startsWith('http') || icon.startsWith('/') || icon.startsWith('data:');
+    // URL 체크 로직 강화
+    const isUrl = icon?.startsWith('http') || icon?.startsWith('/') || icon?.startsWith('data:');
     if (isUrl) {
       return <img src={icon} alt="icon" className="w-20 h-20 rounded-full object-cover mx-auto mb-4" />;
     }
