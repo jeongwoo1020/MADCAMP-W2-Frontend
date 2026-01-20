@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { createPortal } from 'react-dom';
 import { ArrowLeft, Camera, MessageCircle, Trophy, Info, Flame, Send, X, Loader2 } from 'lucide-react';
@@ -17,8 +17,8 @@ export default function CommunityFeed() {
   const navigate = useNavigate();
   const [hasPostedToday, setHasPostedToday] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [touchStart, setTouchStart] = useState(0);
-  const [touchEnd, setTouchEnd] = useState(0);
+  const touchStartRef = useRef(0);
+  const touchEndRef = useRef(0);
   const [dragOffset, setDragOffset] = useState(0);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | 'bounce-right' | null>(null);
 
@@ -165,23 +165,40 @@ export default function CommunityFeed() {
 
   // 기존 로컬스토리지 체크 로직(useEfect) 제거됨 -> API 데이터 기반으로 통합됨
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStart(e.targetTouches[0].clientX);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // Initialize both start and end to prevent "Tap = Swipe" bug
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    const clientX = 'touches' in e ? e.targetTouches[0].clientX : (e as React.MouseEvent).clientX;
+    touchStartRef.current = clientX;
+    touchEndRef.current = clientX; // Initialize end as start
     setSwipeDirection(null);
+    if (!('touches' in e)) setIsDragging(true);
   };
 
-  const handleTouchMove = (e: React.TouchEvent) => {
-    const currentTouch = e.targetTouches[0].clientX;
-    setTouchEnd(currentTouch);
-    // 드래그 거리 실시간 업데이트
-    setDragOffset(currentTouch - touchStart);
+  const handleTouchMove = (e: React.TouchEvent | React.MouseEvent) => {
+    if (!('touches' in e) && !isDragging) return;
+    const clientX = 'touches' in e ? e.targetTouches[0].clientX : (e as React.MouseEvent).clientX;
+    touchEndRef.current = clientX;
+    setDragOffset(clientX - touchStartRef.current);
   };
 
   const handleTouchEnd = () => {
-    if (!touchStart || !touchEnd) return;
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 75;
-    const isRightSwipe = distance < -75;
+    setIsDragging(false);
+
+    // Safety check: if drag never happened (start == end), it's a tap
+    // Note: Use refs to check distance directly
+    const start = touchStartRef.current;
+    const end = touchEndRef.current;
+
+    if (Math.abs(start - end) < 5) {
+      setDragOffset(0);
+      return;
+    }
+
+    const distance = start - end;
+    const isLeftSwipe = distance > 50; // Threshold
+    const isRightSwipe = distance < -50;
 
     if (isLeftSwipe) {
       setSwipeDirection('left');
@@ -189,10 +206,8 @@ export default function CommunityFeed() {
         setCurrentIndex((prev) => (prev + 1) % posts.length);
         setSwipeDirection(null);
       }, 300);
-    }
-    if (isRightSwipe) {
+    } else if (isRightSwipe) {
       if (hasPostedToday) {
-        // 공유 모달 띄우기
         setShareTargetPost(posts[currentIndex]);
         setIsShareModalOpen(true);
       } else {
@@ -203,10 +218,11 @@ export default function CommunityFeed() {
         }, 300);
       }
     }
-    // 드래그 상태 초기화
+
     setDragOffset(0);
-    setTouchStart(0);
-    setTouchEnd(0);
+    // Reset refs
+    touchStartRef.current = 0;
+    touchEndRef.current = 0;
   };
 
   const getVisibleCards = () => {
@@ -336,11 +352,16 @@ export default function CommunityFeed() {
                     onTouchStart={isTop ? handleTouchStart : undefined}
                     onTouchMove={isTop ? handleTouchMove : undefined}
                     onTouchEnd={isTop ? handleTouchEnd : undefined}
+                    onMouseDown={isTop ? handleTouchStart : undefined}
+                    onMouseMove={isTop ? handleTouchMove : undefined}
+                    onMouseUp={isTop ? handleTouchEnd : undefined}
+                    onMouseLeave={isTop ? handleTouchEnd : undefined}
                   >
                     {/* [수정됨] 배경을 검은색으로, 이미지를 contain으로 변경 */}
                     <div className={`rounded-3xl overflow-hidden shadow-xl h-full flex flex-col border border-gray-100 relative ${!hasPostedToday ? 'bg-gray-200' : 'bg-black'}`}>
                       <img
-                        src={`${post.imageUrl}?t=${new Date(post.timestamp).getTime() || idx}`}
+                        // src={`${post.imageUrl}?t=${new Date(post.timestamp).getTime() || idx}`}
+                        src={`${post.imageUrl}?t=${post.id}`}
                         alt={post.userName}
                         className={`w-full h-full ${!hasPostedToday ? 'object-cover blur-xl opacity-80' : 'object-contain'}`}
                         onError={(e) => {
