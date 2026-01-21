@@ -235,7 +235,7 @@ export default function MyPage() {
   const stats = [
     { label: '총 인증', value: postHistory.length, icon: Calendar, color: 'indigo' },
     { label: '활동일', value: `${uniqueActiveDays}일`, icon: TrendingUp, color: 'purple' },
-    { label: '커뮤니티', value: userProfile.interests?.length || 0, icon: Users, color: 'pink' }
+    { label: '커뮤니티', value: joinedCommunitiesCount, icon: Users, color: 'pink' }
   ];
 
   const calculateStreak = () => {
