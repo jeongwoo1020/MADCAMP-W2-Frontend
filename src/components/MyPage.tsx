@@ -235,7 +235,7 @@ export default function MyPage() {
   const stats = [
     { label: '총 인증', value: postHistory.length, icon: Calendar, color: 'indigo' },
     { label: '활동일', value: `${uniqueActiveDays}일`, icon: TrendingUp, color: 'purple' },
-    { label: '커뮤니티', value: userProfile.interests?.length || 0, icon: Users, color: 'pink' }
+    { label: '커뮤니티', value: joinedCommunitiesCount, icon: Users, color: 'pink' }
   ];
 
   const calculateStreak = () => {
@@ -413,7 +413,14 @@ export default function MyPage() {
           </h3>
           <div className="grid grid-cols-3 gap-3">
             {achievements.map((achievement, index) => (
-              <div key={index} className={`text-center p-3 rounded-xl border-2 ${achievement.earned ? 'bg-orange-50 border-orange-100' : 'bg-gray-50 border-transparent opacity-40'}`}>
+              <div
+                key={index}
+                className={`text-center p-3 rounded-xl ${achievement.earned ? 'shadow-md transform scale-105 transition-all' : 'opacity-40'}`}
+                style={{
+                  border: achievement.earned ? '4px solid #a855f7' : '2px solid transparent',
+                  background: achievement.earned ? 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)' : '#f9fafb'
+                }}
+              >
                 <div className="text-3xl mb-1">{achievement.emoji}</div>
                 <p className="text-xs text-gray-700 font-medium">{achievement.title}</p>
               </div>

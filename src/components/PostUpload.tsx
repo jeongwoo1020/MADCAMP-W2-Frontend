@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Camera, X, Check } from 'lucide-react';
+import { toast } from 'sonner';
 
 export default function PostUpload() {
   const navigate = useNavigate();
@@ -73,15 +74,15 @@ export default function PostUpload() {
         // 오늘 날짜를 키로 인증 완료 저장
         const today = new Date().toDateString();
         localStorage.setItem(`hasPostedToday_${id}`, today);
-        alert('인증 완료! 🎉');
+        toast.success('인증 완료! 🎉');
         navigate(`/community/${id}`);
       } else {
         const errorData = await response.json();
-        alert(`업로드 실패: ${errorData.error || '알 수 없는 오류'}`);
+        toast.error(`업로드 실패: ${errorData.error || '알 수 없는 오류'}`);
       }
     } catch (error) {
       console.error('Upload failed:', error);
-      alert('업로드 중 오류가 발생했습니다.');
+      toast.error('업로드 중 오류가 발생했습니다.');
     }
   };
 
