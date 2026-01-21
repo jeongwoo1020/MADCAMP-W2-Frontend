@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Send, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface Message {
   id: string;
@@ -186,9 +187,12 @@ export default function ChatRoom() {
     if (!messageInput.trim() || !id || !myUserId) return;
 
     try {
+      // Payload preparation: Ensure user_id is an integer if it's a numeric string
+      const userIdInt = /^\d+$/.test(myUserId) ? parseInt(myUserId, 10) : myUserId;
+
       const payload = {
-        com_uuid: id,
-        user_id: myUserId,
+        com_uuid: id,  // Matches backend model field name
+        user_id: userIdInt,
         content: messageInput
       };
 
@@ -208,10 +212,13 @@ export default function ChatRoom() {
         // 하지만 빠른 반응을 위해 fetch 한번 더 실행해주면 좋음
         // (폴링 로직과 겹치므로 생략 가능하나 즉각 반응을 원하면 추가)
       } else {
-        console.error('Failed to send message');
+        const errorText = await response.text();
+        console.error('Failed to send message:', response.status, errorText);
+        toast.error(`메시지 전송 실패: 서버 오류 (${response.status})`);
       }
     } catch (error) {
       console.error('Send error:', error);
+      toast.error('메시지 전송 중 오류가 발생했습니다.');
     }
   };
 
