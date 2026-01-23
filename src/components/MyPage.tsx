@@ -333,7 +333,7 @@ export default function MyPage() {
                 )}
                 <div>
                   <h2 className="text-xl font-bold text-gray-900">{userProfile.user_name}</h2>
-                  <p className="text-sm font-medium" style={{ color: '#6b7280' }}>운동메이트와 함께한 지 {calculateDaysSince(userProfile.created_at)}일</p>
+                  <p className="text-sm font-medium" style={{ color: '#6b7280' }}>ProoFit과 함께한 지 {calculateDaysSince(userProfile.created_at)}일</p>
                 </div>
               </div>
               <button

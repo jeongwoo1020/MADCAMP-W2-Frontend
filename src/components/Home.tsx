@@ -197,7 +197,7 @@ export default function Home() {
       <div className="bg-white/80 backdrop-blur-lg border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-md mx-auto px-6 py-4">
           <h1 className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            운동메이트
+            ProoFit
           </h1>
           <p className="text-sm text-gray-600 mt-1">오늘도 함께 운동해요! 💪</p>
         </div>

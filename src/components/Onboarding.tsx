@@ -12,7 +12,7 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
 
   const tutorialSteps = [
     {
-      title: '운동메이트에 오신 것을 환영합니다! 🎉',
+      title: 'ProoFit에 오신 것을 환영합니다! 🎉',
       description: '친구들과 함께 운동을 인증하고, 서로 응원하며 건강한 습관을 만들어보세요.',
       icon: Zap,
       color: 'from-indigo-600 to-purple-600'
@@ -67,8 +67,8 @@ export default function Onboarding({ onComplete }: OnboardingProps) {
               <div
                 key={index}
                 className={`h-1 flex-1 rounded-full transition-all ${index <= currentStep
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600'
-                    : 'bg-gray-200'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600'
+                  : 'bg-gray-200'
                   }`}
               />
             ))}

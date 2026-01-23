@@ -72,7 +72,7 @@ export default function Login() {
           {/* 헤더 */}
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
-              운동메이트
+              ProoFit
             </h1>
             <p className="text-gray-600">로그인하여 시작하세요</p>
           </div>
